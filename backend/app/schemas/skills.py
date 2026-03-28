@@ -29,9 +29,38 @@ class LessonPlan(BaseModel):
 
 
 class LessonPlanOut(BaseModel):
+    id: str
     skill_id: str
     lesson_plan: LessonPlan
     source_research_id: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+
+# ---------------------------------------------------------------------------
+# Generated Character
+# ---------------------------------------------------------------------------
+
+
+class CharacterOut(BaseModel):
+    id: str
+    skill_id: str
+    user_sub: str
+    name: str
+    personality: str
+    coaching_style: str
+    appearance_description: Optional[str] = None
+    image_url: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class CharacterCreate(BaseModel):
+    name: str
+    personality: str
+    coaching_style: str
+    appearance_description: Optional[str] = None
+    image_url: Optional[str] = None
 
 
 # ---------------------------------------------------------------------------

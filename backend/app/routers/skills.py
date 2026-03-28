@@ -1,13 +1,20 @@
+import asyncio
+import json as _json
+import math
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from sqlmodel import Session, select
 
-from app.database import get_session
+from app.database import get_engine, get_session
+from app.db_models import GeneratedCharacter, LessonPlan as LessonPlanDB
 from app.db_models import Skill, SkillProgressEvent, SkillResearch, SkillSessionSummary
 from app.deps import require_user
 from app.schemas.skills import (
+    CharacterCreate,
+    CharacterOut,
     LessonPlan,
     LessonPlanOut,
     ProgressCreate,
@@ -30,6 +37,12 @@ from app.services.session_summary_gemini import generate_session_summary_text
 from app.services.skill_research_gemini import generate_skill_research_dossier
 
 router = APIRouter(prefix="/api/skills", tags=["skills"])
+
+
+def _sse(event_type: str, data: dict) -> str:
+    """Format a single SSE data frame (self-describing type field inside JSON)."""
+    payload = {"type": event_type, **data}
+    return f"data: {_json.dumps(payload)}\n\n"
 
 
 def _utcnow() -> datetime:
@@ -93,6 +106,38 @@ def _summary_out(summary: SkillSessionSummary) -> SkillSessionSummaryOut:
         input_notes=summary.input_notes,
         extra=summary.extra,
         created_at=summary.created_at,
+    )
+
+
+def _lesson_plan_out(plan_db: LessonPlanDB) -> LessonPlanOut:
+    """Convert LessonPlan database row to API schema."""
+    from app.schemas.skills import Checkpoint
+
+    # Extract checkpoints from JSON
+    checkpoints_data = plan_db.checkpoints if isinstance(plan_db.checkpoints, list) else []
+    checkpoints = [Checkpoint.model_validate(cp) for cp in checkpoints_data]
+
+    # Extract other list fields
+    sensory_cues = plan_db.sensory_cues if isinstance(plan_db.sensory_cues, list) else []
+    safety_flags = plan_db.safety_flags if isinstance(plan_db.safety_flags, list) else []
+    common_mistakes = plan_db.common_mistakes if isinstance(plan_db.common_mistakes, list) else []
+
+    lesson_plan = LessonPlan(
+        coaching_mode=plan_db.coaching_mode,
+        sensory_cues=sensory_cues,
+        safety_flags=safety_flags,
+        checkpoints=checkpoints,
+        common_mistakes=common_mistakes,
+        tone=plan_db.tone,
+    )
+
+    return LessonPlanOut(
+        id=plan_db.id,
+        skill_id=plan_db.skill_id,
+        lesson_plan=lesson_plan,
+        source_research_id=plan_db.source_research_id,
+        created_at=plan_db.created_at,
+        updated_at=plan_db.updated_at,
     )
 
 
@@ -165,6 +210,7 @@ def create_skill_with_research(
         ) from exc
 
     # Generate lesson plan (checkpoint structure) alongside the dossier
+    lesson_plan_data: dict | None = None
     try:
         lesson_plan_data = generate_lesson_plan(
             title=body.title,
@@ -215,6 +261,24 @@ def create_skill_with_research(
         detail={"source": "gemini", "model": meta.get("model")},
     )
     session.add(ev)
+
+    # Save lesson plan to dedicated table if successfully generated
+    if lesson_plan_data:
+        plan_row = LessonPlanDB(
+            skill_id=skill.id,
+            user_sub=user_sub,
+            source_research_id=research_row.id,
+            coaching_mode=lesson_plan_data.get("coaching_mode", "hands-on"),
+            tone=lesson_plan_data.get("tone", "encouraging, patient"),
+            checkpoints=lesson_plan_data.get("checkpoints", []),
+            sensory_cues=lesson_plan_data.get("sensory_cues", []),
+            safety_flags=lesson_plan_data.get("safety_flags", []),
+            common_mistakes=lesson_plan_data.get("common_mistakes", []),
+            created_at=now,
+            updated_at=now,
+        )
+        session.add(plan_row)
+
     session.commit()
     session.refresh(skill)
     session.refresh(research_row)
@@ -229,6 +293,166 @@ def create_skill_with_research(
             extra=research_row.extra,
             created_at=research_row.created_at,
         ),
+    )
+
+
+@router.post("/create-with-research-stream")
+async def create_skill_with_research_stream(
+    body: SkillCreateWithResearch,
+    user: dict = Depends(require_user),
+) -> StreamingResponse:
+    """
+    SSE variant of create-with-research.  Events stream as:
+      data: {"type":"status","phase":"research","message":"…","pct":N}
+      data: {"type":"status","phase":"lesson_plan","message":"…","pct":N}
+      data: {"type":"status","phase":"saving","message":"…","pct":N}
+      data: {"type":"done","skill":{…},"research":{…}}
+      data: {"type":"error","message":"…"}
+    """
+    user_sub = str(user["id"])
+
+    async def _generate():
+        yield _sse("status", {"phase": "research", "message": "Generating research dossier…", "pct": 5})
+
+        research_task = asyncio.create_task(
+            asyncio.to_thread(
+                generate_skill_research_dossier,
+                title=body.title,
+                goal=body.goal,
+                level=body.level,
+                category=body.category,
+            )
+        )
+        tick = 0
+        while not research_task.done():
+            await asyncio.sleep(2)
+            tick += 1
+            # Logarithmic growth: starts fast, slows as it approaches 55%
+            # Formula: 5 + 50 * (1 - e^(-tick/8)) gives smoother perceived progress
+            pct = min(55, int(5 + 50 * (1 - math.exp(-tick / 8))))
+            elapsed_sec = tick * 2
+            if not research_task.done():
+                yield _sse("status", {
+                    "phase": "research",
+                    "message": f"Thinking deeply… ({elapsed_sec}s)",
+                    "pct": pct
+                })
+        try:
+            dossier, meta = research_task.result()
+        except Exception as exc:
+            yield _sse("error", {"message": f"Research failed: {exc}"})
+            return
+
+        yield _sse("status", {"phase": "lesson_plan", "message": "Building lesson plan…", "pct": 60})
+        lesson_plan_data: dict | None = None
+        try:
+            lesson_plan_data = await asyncio.to_thread(
+                generate_lesson_plan,
+                title=body.title,
+                goal=body.goal,
+                level=body.level,
+                category=body.category,
+                dossier=dossier,
+            )
+            meta["lesson_plan"] = lesson_plan_data
+            yield _sse("status", {"phase": "lesson_plan", "message": "Lesson plan ready", "pct": 75})
+        except Exception as exc:  # noqa: BLE001
+            meta["lesson_plan"] = None
+            meta["lesson_plan_error"] = str(exc)
+            # Warn user but continue — skill is still usable with generic checkpoints
+            yield _sse("status", {
+                "phase": "lesson_plan",
+                "message": "⚠️ Lesson plan generation failed, will use defaults",
+                "pct": 75
+            })
+
+        yield _sse("status", {"phase": "saving", "message": "Saving to your account…", "pct": 85})
+
+        def _save() -> tuple:
+            now = _utcnow()
+            cat_raw = body.category.strip() if body.category else None
+            ctx = {
+                "goal": body.goal.strip(),
+                "level": body.level.strip(),
+                "category": (cat_raw.lower() if cat_raw else None),
+            }
+            with Session(get_engine()) as db:
+                skill_row = Skill(
+                    user_sub=user_sub,
+                    title=body.title.strip(),
+                    notes=f"Goal: {body.goal.strip()[:2000]}",
+                    context=ctx,
+                    stats_level=_initial_stats_level(ctx),
+                    created_at=now,
+                    updated_at=now,
+                )
+                db.add(skill_row)
+                db.flush()
+                research_row = SkillResearch(
+                    skill_id=skill_row.id,
+                    user_sub=user_sub,
+                    title=f"Research dossier: {body.title.strip()}",
+                    content=dossier,
+                    extra=meta,
+                )
+                db.add(research_row)
+                db.add(
+                    SkillProgressEvent(
+                        skill_id=skill_row.id,
+                        user_sub=user_sub,
+                        kind="milestone",
+                        label="Research dossier generated",
+                        detail={"source": "gemini", "model": meta.get("model")},
+                    )
+                )
+
+                # Save lesson plan to dedicated table if successfully generated
+                if lesson_plan_data:
+                    plan_row = LessonPlanDB(
+                        skill_id=skill_row.id,
+                        user_sub=user_sub,
+                        source_research_id=research_row.id,
+                        coaching_mode=lesson_plan_data.get("coaching_mode", "hands-on"),
+                        tone=lesson_plan_data.get("tone", "encouraging, patient"),
+                        checkpoints=lesson_plan_data.get("checkpoints", []),
+                        sensory_cues=lesson_plan_data.get("sensory_cues", []),
+                        safety_flags=lesson_plan_data.get("safety_flags", []),
+                        common_mistakes=lesson_plan_data.get("common_mistakes", []),
+                        created_at=now,
+                        updated_at=now,
+                    )
+                    db.add(plan_row)
+
+                db.commit()
+                db.refresh(skill_row)
+                db.refresh(research_row)
+                return skill_row, research_row
+
+        try:
+            skill_saved, research_saved = await asyncio.to_thread(_save)
+        except Exception as exc:
+            yield _sse("error", {"message": f"Failed to save: {exc}"})
+            return
+
+        yield _sse("done", {
+            "skill": _skill_out(skill_saved).model_dump(mode="json"),
+            "research": ResearchOut(
+                id=research_saved.id,
+                skill_id=research_saved.skill_id,
+                title=research_saved.title,
+                content=research_saved.content,
+                extra=research_saved.extra,
+                created_at=research_saved.created_at,
+            ).model_dump(mode="json"),
+        })
+
+    return StreamingResponse(
+        _generate(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
     )
 
 
@@ -344,6 +568,7 @@ def complete_session(
             summary=summary,
             skill=skill,
             user_email=user.get("email") if isinstance(user.get("email"), str) else None,
+            session=session,
         )
         if export_result:
             docs_export_url = export_result["document_url"]
@@ -440,32 +665,21 @@ def get_lesson_plan(
     user: dict = Depends(require_user),
     session: Session = Depends(get_session),
 ) -> LessonPlanOut:
-    """Return the stored lesson plan from the latest research dossier's extra data."""
+    """Return the stored lesson plan from the LessonPlan table."""
     user_sub = str(user["id"])
     _get_skill_owned(session, skill_id, user_sub)
-    stmt = (
-        select(SkillResearch)
-        .where(SkillResearch.skill_id == skill_id)
-        .order_by(SkillResearch.created_at.desc())
-        .limit(1)
-    )
-    r = session.exec(stmt).first()
-    if r is None:
-        raise HTTPException(status_code=404, detail="No research found for this skill.")
-    extra = r.extra or {}
-    lp_data = extra.get("lesson_plan")
-    if not lp_data:
+
+    # Query the LessonPlan table
+    stmt = select(LessonPlanDB).where(LessonPlanDB.skill_id == skill_id)
+    plan_db = session.exec(stmt).first()
+
+    if plan_db is None:
         raise HTTPException(
             status_code=404,
-            detail="No lesson plan stored yet. Regenerate to create one.",
+            detail="No lesson plan found for this skill. Create one during onboarding or regenerate.",
         )
-    try:
-        lp = LessonPlan.model_validate(lp_data)
-    except Exception as exc:
-        raise HTTPException(
-            status_code=422, detail=f"Stored lesson plan is malformed: {exc}"
-        ) from exc
-    return LessonPlanOut(skill_id=skill_id, lesson_plan=lp, source_research_id=r.id)
+
+    return _lesson_plan_out(plan_db)
 
 
 @router.post("/{skill_id}/lesson-plan/regenerate", response_model=LessonPlanOut)
@@ -474,7 +688,7 @@ def regenerate_lesson_plan(
     user: dict = Depends(require_user),
     session: Session = Depends(get_session),
 ) -> LessonPlanOut:
-    """Re-run lesson plan generation and persist back into the latest research extra."""
+    """Re-run lesson plan generation and save to LessonPlan table."""
     user_sub = str(user["id"])
     skill = _get_skill_owned(session, skill_id, user_sub)
     stmt = (
@@ -501,19 +715,44 @@ def regenerate_lesson_plan(
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Lesson plan generation failed: {exc}") from exc
 
-    extra = dict(r.extra or {})
-    extra["lesson_plan"] = lp_data
-    r.extra = extra
-    session.add(r)
+    # Check if lesson plan already exists (unique constraint on skill_id)
+    existing = session.exec(select(LessonPlanDB).where(LessonPlanDB.skill_id == skill_id)).first()
+
+    now = _utcnow()
+    if existing:
+        # Update existing lesson plan
+        existing.source_research_id = r.id
+        existing.coaching_mode = lp_data.get("coaching_mode", "hands-on")
+        existing.tone = lp_data.get("tone", "encouraging, patient")
+        existing.checkpoints = lp_data.get("checkpoints", [])
+        existing.sensory_cues = lp_data.get("sensory_cues", [])
+        existing.safety_flags = lp_data.get("safety_flags", [])
+        existing.common_mistakes = lp_data.get("common_mistakes", [])
+        existing.updated_at = now
+        session.add(existing)
+        session.commit()
+        session.refresh(existing)
+        return _lesson_plan_out(existing)
+
+    # Create new lesson plan
+    plan_db = LessonPlanDB(
+        skill_id=skill_id,
+        user_sub=user_sub,
+        source_research_id=r.id,
+        coaching_mode=lp_data.get("coaching_mode", "hands-on"),
+        tone=lp_data.get("tone", "encouraging, patient"),
+        checkpoints=lp_data.get("checkpoints", []),
+        sensory_cues=lp_data.get("sensory_cues", []),
+        safety_flags=lp_data.get("safety_flags", []),
+        common_mistakes=lp_data.get("common_mistakes", []),
+        created_at=now,
+        updated_at=now,
+    )
+    session.add(plan_db)
     session.commit()
-    session.refresh(r)
+    session.refresh(plan_db)
 
-    try:
-        lp = LessonPlan.model_validate(lp_data)
-    except Exception as exc:
-        raise HTTPException(status_code=422, detail=f"Generated lesson plan is malformed: {exc}") from exc
-
-    return LessonPlanOut(skill_id=skill_id, lesson_plan=lp, source_research_id=r.id)
+    return _lesson_plan_out(plan_db)
 
 
 # --- Research ---
@@ -698,6 +937,126 @@ def list_session_summaries(
         .where(SkillSessionSummary.skill_id == skill_id)
         .order_by(SkillSessionSummary.created_at.desc())
         .offset(offset)
+        .limit(limit)
+    ).all()
+    return {"items": [_summary_out(row) for row in rows]}
+
+
+# ---------------------------------------------------------------------------
+# Character endpoints
+# ---------------------------------------------------------------------------
+
+
+@router.get("/{skill_id}/character", response_model=CharacterOut | None)
+def get_character(
+    skill_id: str,
+    user: dict = Depends(require_user),
+    session: Session = Depends(get_session),
+) -> CharacterOut | None:
+    """Get the generated character for a skill."""
+    user_sub = str(user["id"])
+    _get_skill_owned(session, skill_id, user_sub)
+    character = session.exec(
+        select(GeneratedCharacter).where(GeneratedCharacter.skill_id == skill_id)
+    ).first()
+    if not character:
+        return None
+    return CharacterOut(
+        id=character.id,
+        skill_id=character.skill_id,
+        user_sub=character.user_sub,
+        name=character.name,
+        personality=character.personality,
+        coaching_style=character.coaching_style,
+        appearance_description=character.appearance_description,
+        image_url=character.image_url,
+        created_at=character.created_at,
+        updated_at=character.updated_at,
+    )
+
+
+@router.post("/{skill_id}/character", response_model=CharacterOut)
+def create_or_regenerate_character(
+    skill_id: str,
+    body: CharacterCreate,
+    user: dict = Depends(require_user),
+    session: Session = Depends(get_session),
+) -> CharacterOut:
+    """Create or regenerate the character for a skill."""
+    user_sub = str(user["id"])
+    _get_skill_owned(session, skill_id, user_sub)
+
+    # Delete existing character if any
+    existing = session.exec(
+        select(GeneratedCharacter).where(GeneratedCharacter.skill_id == skill_id)
+    ).first()
+    if existing:
+        session.delete(existing)
+        session.commit()
+
+    # Create new character
+    character = GeneratedCharacter(
+        skill_id=skill_id,
+        user_sub=user_sub,
+        name=body.name,
+        personality=body.personality,
+        coaching_style=body.coaching_style,
+        appearance_description=body.appearance_description,
+        image_url=body.image_url,
+    )
+    session.add(character)
+    session.commit()
+    session.refresh(character)
+
+    return CharacterOut(
+        id=character.id,
+        skill_id=character.skill_id,
+        user_sub=character.user_sub,
+        name=character.name,
+        personality=character.personality,
+        coaching_style=character.coaching_style,
+        appearance_description=character.appearance_description,
+        image_url=character.image_url,
+        created_at=character.created_at,
+        updated_at=character.updated_at,
+    )
+
+
+@router.delete("/{skill_id}/character", status_code=204)
+def delete_character(
+    skill_id: str,
+    user: dict = Depends(require_user),
+    session: Session = Depends(get_session),
+) -> None:
+    """Delete the character for a skill."""
+    user_sub = str(user["id"])
+    _get_skill_owned(session, skill_id, user_sub)
+
+    character = session.exec(
+        select(GeneratedCharacter).where(GeneratedCharacter.skill_id == skill_id)
+    ).first()
+    if character:
+        session.delete(character)
+        session.commit()
+
+
+# ---------------------------------------------------------------------------
+# Dashboard / cross-skill endpoints
+# ---------------------------------------------------------------------------
+
+
+@router.get("/sessions/recent", response_model=dict)
+def list_recent_sessions(
+    user: dict = Depends(require_user),
+    session: Session = Depends(get_session),
+    limit: int = Query(10, ge=1, le=50),
+) -> dict:
+    """List recent session summaries across all skills for the user."""
+    user_sub = str(user["id"])
+    rows = session.exec(
+        select(SkillSessionSummary)
+        .where(SkillSessionSummary.user_sub == user_sub)
+        .order_by(SkillSessionSummary.created_at.desc())
         .limit(limit)
     ).all()
     return {"items": [_summary_out(row) for row in rows]}
