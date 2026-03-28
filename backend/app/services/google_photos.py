@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import logging
 from typing import Any
 
 import httpx
 
 GOOGLE_PHOTOS_API_BASE = "https://photoslibrary.googleapis.com/v1"
+logger = logging.getLogger(__name__)
 
 
 def _auth_headers(access_token: str) -> dict[str, str]:
@@ -43,9 +45,21 @@ def _iter_albums(access_token: str) -> list[dict[str, Any]]:
 
 def ensure_album(access_token: str, title: str) -> dict[str, Any]:
     normalized = build_skill_album_title(title)
-    for album in _iter_albums(access_token):
-        if album.get("title") == normalized:
-            return album
+    try:
+        for album in _iter_albums(access_token):
+            if album.get("title") == normalized:
+                return album
+    except httpx.HTTPStatusError as exc:
+        # Some users will still have older granted scopes. Listing albums requires
+        # app-created-data read access, but direct album creation only needs appendonly.
+        if exc.response.status_code not in {401, 403}:
+            raise
+        logger.warning(
+            "Google Photos album listing failed; falling back to direct album creation. "
+            "status=%s body=%s",
+            exc.response.status_code,
+            exc.response.text,
+        )
 
     with httpx.Client(timeout=30.0) as client:
         res = client.post(
@@ -137,10 +151,22 @@ def upload_photo_to_skill_album(
     label: str | None = None,
     description: str | None = None,
 ) -> dict[str, Any]:
-    album = ensure_album(access_token, skill_title)
-    album_id = album.get("id")
-    if not isinstance(album_id, str) or not album_id:
-        raise RuntimeError("Google Photos album id was missing")
+    album: dict[str, Any] | None = None
+    album_id: str | None = None
+    album_title = build_skill_album_title(skill_title)
+    try:
+        album = ensure_album(access_token, skill_title)
+        maybe_album_id = album.get("id")
+        if isinstance(maybe_album_id, str) and maybe_album_id:
+            album_id = maybe_album_id
+        else:
+            raise RuntimeError("Google Photos album id was missing")
+        album_title = str(album.get("title") or album_title)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(
+            "Google Photos album resolution failed; uploading to library only. error=%s",
+            exc,
+        )
 
     ext = "jpg"
     lower_mime = mime_type.lower()
@@ -160,9 +186,10 @@ def upload_photo_to_skill_album(
     )
     return {
         "albumId": album_id,
-        "albumTitle": album.get("title") or build_skill_album_title(skill_title),
+        "albumTitle": album_title,
         "mediaItemId": media_item.get("id"),
         "productUrl": media_item.get("productUrl"),
         "baseUrl": media_item.get("baseUrl"),
         "filename": media_item.get("filename") or filename,
+        "uploadedToLibraryOnly": album_id is None,
     }

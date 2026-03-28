@@ -1,4 +1,5 @@
 import math
+import logging
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
@@ -14,6 +15,7 @@ from app.services.google_oauth import get_valid_access_token
 from app.services.google_photos import upload_photo_to_skill_album
 
 router = APIRouter(prefix="/api/photos", tags=["photos"])
+logger = logging.getLogger(__name__)
 
 
 class UploadPhotoBody(BaseModel):
@@ -32,7 +34,7 @@ def upload_photo(
     body: UploadPhotoBody,
     user: dict = Depends(require_user),
     session: Session = Depends(get_session),
-) -> dict[str, str | None]:
+) -> dict[str, str | bool | None]:
     user_sub = str(user["id"])
     skill = _get_skill_owned(session, body.skill_id, user_sub)
 
@@ -73,6 +75,11 @@ def upload_photo(
     except httpx.HTTPStatusError as exc:
         detail = exc.response.text
         status = exc.response.status_code
+        logger.warning(
+            "Google Photos upstream error status=%s body=%s",
+            status,
+            detail,
+        )
         if status == 401:
             raise HTTPException(
                 status_code=409,
@@ -100,6 +107,7 @@ def upload_photo(
             "album_title": uploaded.get("albumTitle"),
             "media_item_id": uploaded.get("mediaItemId"),
             "product_url": uploaded.get("productUrl"),
+            "uploaded_to_library_only": bool(uploaded.get("uploadedToLibraryOnly")),
             "kind": body.kind,
             "mime_type": body.mime_type,
             "size_bytes": len(image_bytes),
@@ -114,4 +122,5 @@ def upload_photo(
         "albumTitle": str(uploaded.get("albumTitle") or skill.title),
         "mediaItemId": str(uploaded.get("mediaItemId") or ""),
         "productUrl": str(uploaded.get("productUrl") or ""),
+        "uploadedToLibraryOnly": bool(uploaded.get("uploadedToLibraryOnly")),
     }
