@@ -255,15 +255,18 @@ export function useGeminiLiveSession(
       let liveModel: string
       let systemInstruction: string
       try {
+        console.log('[GeminiLive] Fetching ephemeral token...')
         const tokenRes = await fetchLiveEphemeralToken(options?.skillId)
         accessToken = tokenRes.accessToken
         liveModel = tokenRes.liveModel
         systemInstruction = tokenRes.systemInstruction
+        console.log('[GeminiLive] Token received:', { liveModel, tokenLength: accessToken.length })
       } catch (e) {
         const msg =
           e instanceof Error
             ? e.message
             : 'Could not get Live token from the API. Is the backend running with GEMINI_API_KEY?'
+        console.error('[GeminiLive] Token fetch error:', e)
         setCoachError(msg)
         setCoachPhase('error')
         return
@@ -275,12 +278,14 @@ export function useGeminiLiveSession(
       const client = new GeminiLiveClient()
       clientRef.current = client
 
+      console.log('[GeminiLive] Connecting WebSocket...')
       client.connect(
         accessToken,
         liveModel,
         systemInstruction,
         {
           onSetupComplete: () => {
+            console.log('[GeminiLive] Setup complete, session is live')
             setCoachPhase('live')
             void (async () => {
               try {
@@ -458,12 +463,14 @@ export function useGeminiLiveSession(
             }
           },
           onError: (msg) => {
+            console.error('[GeminiLive] Error:', msg)
             setCoachError(msg)
             setCoachPhase('error')
             void stopMedia()
             closeWebSocket()
           },
           onClose: (info) => {
+            console.log('[GeminiLive] WebSocket closed:', info)
             clientRef.current = null
             void stopMedia()
             setCoachPhase((prev) => {
@@ -484,7 +491,7 @@ export function useGeminiLiveSession(
             })
           },
         },
-        { functionDeclarations: [LIVE_FORM_CORRECTION_TOOL] },
+        { enableTranscription: true, functionDeclarations: [LIVE_FORM_CORRECTION_TOOL] },
       )
     },
     [

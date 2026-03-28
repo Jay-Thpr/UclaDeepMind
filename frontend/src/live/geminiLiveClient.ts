@@ -155,12 +155,18 @@ export class GeminiLiveClient {
   ): void {
     this.close()
     const url = `${EPHEMERAL_WS_URL}?access_token=${encodeURIComponent(accessToken)}`
+    console.log('[GeminiLiveClient] Opening WebSocket:', { modelId, url: url.substring(0, 100) + '...' })
     this.ws = new WebSocket(url)
 
     this.ws.onopen = () => {
       const payload = buildSetupPayload(modelId, systemInstruction, {
         enableTranscription: options.enableTranscription ?? false,
         functionDeclarations: options.functionDeclarations ?? [],
+      })
+      console.log('[GeminiLiveClient] WebSocket opened, sending setup:', {
+        model: payload.setup.model,
+        hasTools: Array.isArray(payload.setup.tools),
+        enableTranscription: options.enableTranscription ?? false
       })
       this.ws?.send(JSON.stringify(payload))
     }
@@ -184,11 +190,13 @@ export class GeminiLiveClient {
       }
 
       if (msg.error) {
+        console.error('[GeminiLiveClient] Server error:', msg.error)
         handlers.onError(JSON.stringify(msg.error))
         return
       }
 
       if (msg.setupComplete != null || msg.setup_complete != null) {
+        console.log('[GeminiLiveClient] Setup complete')
         this.ready = true
         handlers.onSetupComplete()
         return
@@ -249,11 +257,17 @@ export class GeminiLiveClient {
       }
     }
 
-    this.ws.onerror = () => {
+    this.ws.onerror = (err) => {
+      console.error('[GeminiLiveClient] WebSocket error:', err)
       handlers.onError('WebSocket connection error')
     }
 
     this.ws.onclose = (event: CloseEvent) => {
+      console.log('[GeminiLiveClient] WebSocket closed:', {
+        code: event.code,
+        reason: event.reason,
+        wasClean: event.wasClean
+      })
       this.ready = false
       this.ws = null
       handlers.onClose({
