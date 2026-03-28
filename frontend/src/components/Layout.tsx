@@ -3,9 +3,10 @@ import './Layout.css'
 
 const nav = [
   { to: '/', label: 'Home' },
+  { to: '/select-skill', label: 'Pick skill' },
   { to: '/onboarding', label: 'Goals' },
-  { to: '/dashboard', label: 'Quest board' },
-  { to: '/session', label: 'Live coach' },
+  { to: '/dashboard', label: 'Journey' },
+  { to: '/session', label: 'Live session' },
 ]
 
 export function Layout() {

@@ -14,6 +14,8 @@ class Settings(BaseSettings):
     gemini_api_key: str = ""
     # Must support Live / BidiGenerateContent (see Gemini API “Live” / native audio models).
     gemini_live_model: str = "gemini-3.1-flash-live-preview"
+    # Still-image form markup (Nano Banana 2); REST generateContent, not Live WebSocket.
+    gemini_image_model: str = "gemini-3.1-flash-image-preview"
 
     @property
     def cors_origins_list(self) -> list[str]:

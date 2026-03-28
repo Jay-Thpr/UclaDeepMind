@@ -1,20 +1,30 @@
 :root {
-  --font-pixel: 'Press Start 2P', ui-monospace, monospace;
-  --font-ui: 'Outfit', system-ui, sans-serif;
+  --font-ui: 'Sora', system-ui, -apple-system, sans-serif;
 
-  --bg: #0c0f14;
-  --bg-elevated: #141a22;
-  --text: #c4cdd8;
-  --text-strong: #f1f5f9;
-  --text-muted: #8b97a8;
-  --border-strong: #2a3444;
-  --surface-hover: rgba(125, 211, 252, 0.08);
+  --bg: #faf9f6;
+  --bg-soft: #f4f3ef;
+  --bg-elevated: #ffffff;
+  --text: #2d2c2a;
+  --text-strong: #2d2c2a;
+  --text-muted: #73706a;
+  --text-soft: #4a4845;
+  --border-strong: #e2dfd9;
+  --border-sage: rgba(136, 165, 148, 0.22);
+  --surface-hover: rgba(136, 165, 148, 0.08);
 
-  --accent: #38bdf8;
-  --accent-bright: #7dd3fc;
-  --accent-shadow: #0369a1;
+  --primary: #88a594;
+  --primary-dark: #6d9279;
+  --primary-foreground: #ffffff;
+  --secondary: #a8c0d8;
+  --accent-warm: #e8d5a5;
+  --accent-warm-text: #8a7040;
+  --destructive: #d97777;
 
-  color-scheme: dark;
+  --accent: var(--primary);
+  --accent-bright: #6db88a;
+  --accent-shadow: #5a8068;
+
+  color-scheme: light;
   font-family: var(--font-ui);
   line-height: 1.5;
   font-weight: 400;

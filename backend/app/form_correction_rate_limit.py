@@ -1,0 +1,30 @@
+"""In-memory rate limit for form-correction (one success per client per interval)."""
+
+from __future__ import annotations
+
+import time
+from threading import Lock
+
+_lock = Lock()
+# monotonic timestamp of last successful annotation per key
+_last_success_mono: dict[str, float] = {}
+
+FORM_CORRECTION_MIN_INTERVAL_SEC = 30.0
+
+
+def form_correction_seconds_until_allowed(client_key: str) -> float:
+    """Seconds to wait before another successful annotation is allowed (0 = allowed now)."""
+    with _lock:
+        now = time.monotonic()
+        last = _last_success_mono.get(client_key)
+        if last is None:
+            return 0.0
+        elapsed = now - last
+        if elapsed >= FORM_CORRECTION_MIN_INTERVAL_SEC:
+            return 0.0
+        return FORM_CORRECTION_MIN_INTERVAL_SEC - elapsed
+
+
+def form_correction_record_success(client_key: str) -> None:
+    with _lock:
+        _last_success_mono[client_key] = time.monotonic()

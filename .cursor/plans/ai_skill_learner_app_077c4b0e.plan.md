@@ -4,7 +4,7 @@ overview: "Greenfield monorepo: a React web client for onboarding, gamified skil
 todos:
   - id: scaffold-monorepo
     content: Scaffold `backend/` (FastAPI) and `frontend/` (Vite React TS), shared `.env.example`, CORS, basic health checks
-    status: completed
+    status: pending
   - id: google-oauth
     content: Implement Google OAuth (PKCE or server flow), token storage, minimal user record; request Docs/Drive/Calendar/YouTube scopes
     status: pending
@@ -16,10 +16,10 @@ todos:
     status: pending
   - id: live-orchestration
     content: Integrate Gemini Live with injected skill/user context; wire function calling to FastAPI tool handlers and escalation state
-    status: pending
+    status: completed
   - id: nano-banana-integration
     content: Add image client for annotations (frame + coaching instruction) and avatar/outfit generations; return Drive URLs
-    status: pending
+    status: completed
   - id: react-flows-ui
     content: Onboarding, goals/level, dashboard (progress + avatar), live session UI with annotation overlay and session timer
     status: pending

@@ -4,6 +4,7 @@ import { DashboardPage } from './pages/DashboardPage'
 import { HomePage } from './pages/HomePage'
 import { OnboardingPage } from './pages/OnboardingPage'
 import { SessionPage } from './pages/SessionPage'
+import { SkillSelectPage } from './pages/SkillSelectPage'
 
 export default function App() {
   return (
@@ -11,6 +12,7 @@ export default function App() {
       <Routes>
         <Route element={<Layout />}>
           <Route index element={<HomePage />} />
+          <Route path="select-skill" element={<SkillSelectPage />} />
           <Route path="onboarding" element={<OnboardingPage />} />
           <Route path="dashboard" element={<DashboardPage />} />
           <Route path="session" element={<SessionPage />} />

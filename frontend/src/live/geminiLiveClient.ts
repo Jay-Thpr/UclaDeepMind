@@ -2,6 +2,39 @@
 const EPHEMERAL_WS_URL =
   'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContentConstrained'
 
+/** Live API tool invocation (function calling). */
+export type LiveFunctionCall = {
+  id: string
+  name: string
+  args: Record<string, unknown>
+}
+
+/**
+ * Declares a tool the Live model can call to queue a Nano Banana 2 still-frame correction.
+ * Your app handles the call (HTTP to `/api/annotations/form-correction`) and replies with `sendToolResponse`.
+ */
+export const LIVE_FORM_CORRECTION_TOOL: Record<string, unknown> = {
+  name: 'request_form_correction',
+  description:
+    'Generate an annotated still of the current camera view. You MUST pass the same concrete corrections you are coaching (arrows/labels will visualize this text). Call when drawn guidance would help; do not rely on the image model to guess what is wrong.',
+  parameters: {
+    type: 'object',
+    properties: {
+      coachingSuggestions: {
+        type: 'string',
+        description:
+          'Exact fixes to illustrate on the photo: what is wrong, what to do instead, and where (e.g. "elbow too high — lower until level with shoulder; arrow along upper arm"). Bullets or short sentences are fine. Must match your spoken coaching.',
+      },
+      focus: {
+        type: 'string',
+        description:
+          'Optional body area or skill slice (e.g. "wrist", "spine", "knife grip").',
+      },
+    },
+    required: ['coachingSuggestions'],
+  },
+}
+
 export type GeminiLiveHandlers = {
   onSetupComplete: () => void
   onAudioBase64: (base64: string) => void
@@ -11,6 +44,8 @@ export type GeminiLiveHandlers = {
   onError: (message: string) => void
   /** Fired when the socket closes; code 1000 = normal. */
   onClose: (info: { code: number; reason: string; wasClean: boolean }) => void
+  /** Handle function calls from the Live model (e.g. request_form_correction). */
+  onToolCall?: (calls: LiveFunctionCall[]) => void | Promise<void>
 }
 
 /** Normalize gRPC-JSON / snake_case fields to the camelCase shape we read. */
@@ -27,7 +62,7 @@ function asRecord(v: unknown): Record<string, unknown> | undefined {
 function buildSetupPayload(
   modelId: string,
   systemInstruction: string,
-  options: { enableTranscription: boolean },
+  options: { enableTranscription: boolean; functionDeclarations: unknown[] },
 ) {
   const setup: Record<string, unknown> = {
     model: `models/${modelId}`,
@@ -45,7 +80,7 @@ function buildSetupPayload(
     systemInstruction: {
       parts: [{ text: systemInstruction }],
     },
-    tools: [{ functionDeclarations: [] as unknown[] }],
+    tools: [{ functionDeclarations: options.functionDeclarations }],
     realtimeInputConfig: {
       automaticActivityDetection: {
         disabled: false,
@@ -67,6 +102,35 @@ function buildSetupPayload(
   return { setup }
 }
 
+function normalizeFunctionCalls(toolRoot: unknown): LiveFunctionCall[] {
+  const r = asRecord(toolRoot)
+  if (!r) {
+    return []
+  }
+  const raw = (r.functionCalls ?? r.function_calls) as unknown[] | undefined
+  if (!raw?.length) {
+    return []
+  }
+  const out: LiveFunctionCall[] = []
+  for (const item of raw) {
+    const o = asRecord(item)
+    if (!o) {
+      continue
+    }
+    const id = String(o.id ?? '')
+    const name = String(o.name ?? '')
+    let args: Record<string, unknown> = {}
+    const a = o.args
+    if (a && typeof a === 'object' && !Array.isArray(a)) {
+      args = a as Record<string, unknown>
+    }
+    if (name) {
+      out.push({ id, name, args })
+    }
+  }
+  return out
+}
+
 export class GeminiLiveClient {
   private ws: WebSocket | null = null
   private ready = false
@@ -83,7 +147,11 @@ export class GeminiLiveClient {
     modelId: string,
     systemInstruction: string,
     handlers: GeminiLiveHandlers,
-    options: { enableTranscription?: boolean } = {},
+    options: {
+      enableTranscription?: boolean
+      /** Extra Live tools (e.g. [LIVE_FORM_CORRECTION_TOOL]). */
+      functionDeclarations?: unknown[]
+    } = {},
   ): void {
     this.close()
     const url = `${EPHEMERAL_WS_URL}?access_token=${encodeURIComponent(accessToken)}`
@@ -92,6 +160,7 @@ export class GeminiLiveClient {
     this.ws.onopen = () => {
       const payload = buildSetupPayload(modelId, systemInstruction, {
         enableTranscription: options.enableTranscription ?? false,
+        functionDeclarations: options.functionDeclarations ?? [],
       })
       this.ws?.send(JSON.stringify(payload))
     }
@@ -125,7 +194,20 @@ export class GeminiLiveClient {
         return
       }
 
-      if (msg.toolCall ?? msg.tool_call) {
+      const rawTool = msg.toolCall ?? msg.tool_call
+      if (rawTool) {
+        if (handlers.onToolCall) {
+          const calls = normalizeFunctionCalls(rawTool)
+          if (calls.length) {
+            try {
+              await handlers.onToolCall(calls)
+            } catch (e) {
+              handlers.onError(
+                e instanceof Error ? e.message : 'Tool handler failed',
+              )
+            }
+          }
+        }
         return
       }
 
@@ -210,6 +292,26 @@ export class GeminiLiveClient {
             data: base64,
           },
         },
+      }),
+    )
+  }
+
+  /**
+   * Reply to Live function calls (required after the model emits `toolCall`).
+   */
+  sendToolResponse(
+    functionResponses: Array<{
+      name: string
+      id: string
+      response: Record<string, unknown>
+    }>,
+  ): void {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      return
+    }
+    this.ws.send(
+      JSON.stringify({
+        toolResponse: { functionResponses },
       }),
     )
   }

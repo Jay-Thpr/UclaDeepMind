@@ -68,6 +68,7 @@ If the app is not served from Vite’s dev server, set `VITE_API_URL` to your AP
 | `CORS_ORIGINS`      | `backend/.env`  | Comma-separated allowed browser origins (default: `http://localhost:5173`) |
 | `GEMINI_API_KEY`    | `backend/.env`  | Server-only Gemini key; used to mint **ephemeral Live tokens** for the UI |
 | `GEMINI_LIVE_MODEL` | `backend/.env`  | Live model id (default: `gemini-3.1-flash-live-preview`; override from `scripts/check_gemini_key.py` if needed) |
+| `GEMINI_IMAGE_MODEL` | `backend/.env` | Image model for annotated stills (`POST /api/annotations/form-correction`; default: `gemini-3.1-flash-image-preview`) |
 | `VITE_API_URL`      | `frontend/.env` | Optional; leave empty in dev to use Vite’s `/api` proxy                 |
 
 Full list of placeholders (Google, Gemini, Nano Banana): [.env.example](.env.example).
@@ -90,7 +91,7 @@ Each line shows the model id to use in config (no `models/` prefix) and `support
 | Path                             | Role                                                                                        |
 | -------------------------------- | ------------------------------------------------------------------------------------------- |
 | [backend/](backend/)             | FastAPI app, routers under `app/routers/`, stubs for auth, skills, sessions, research, live |
-| [frontend/](frontend/)           | React routes + Gemini Live WebSocket (mic/video in, audio out) on the session page            |
+| [frontend/](frontend/)           | React routes + Gemini Live (mic/video, tool `request_form_correction`) + manual capture for annotated stills |
 | [.cursor/plans/](.cursor/plans/) | Product / implementation plan                                                               |
 
 ## License

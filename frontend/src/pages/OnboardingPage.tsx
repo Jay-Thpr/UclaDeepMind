@@ -10,17 +10,22 @@ export function OnboardingPage() {
   const [level, setLevel] = useState<(typeof levels)[number]>('Beginner')
 
   return (
-    <div className="page">
-      <h1 className="page__title page__title--sm">Set your quest</h1>
-      <p className="page__lead">
-        Stub form — wire to research + Docs in the next milestone.
-      </p>
+    <div className="page page--onboarding">
       <form
         className="form-card"
         onSubmit={(e) => {
           e.preventDefault()
         }}
       >
+        <div className="text-center" style={{ marginBottom: '0.25rem' }}>
+          <h1 className="page__title page__title--sm" style={{ marginBottom: '0.35rem' }}>
+            Set your quest
+          </h1>
+          <p className="page__lead" style={{ margin: '0 auto', maxWidth: '28rem' }}>
+            Tell us what you are building toward. We will use this to tune coaching
+            in upcoming milestones.
+          </p>
+        </div>
         <label className="field">
           <span className="field__label">Skill</span>
           <input
