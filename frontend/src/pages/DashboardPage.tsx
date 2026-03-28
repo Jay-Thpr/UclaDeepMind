@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { PixelAvatar } from '../components/PixelAvatar'
+import { Character } from '../components/Character'
 import './Page.css'
 
 const FlameIcon = () => (
@@ -124,11 +124,18 @@ export function DashboardPage() {
       <div className="journey__grid">
         <div className="journey__panel">
           <div className="journey__hero-row">
-            <div className="journey__avatar-wrap">
-              <PixelAvatar skillLabel={currentSkill} level={level} />
-              <div className="journey__level-badge" aria-hidden>
-                {level}
+            <div className="journey__avatar-column">
+              <div className="journey__avatar-wrap">
+                <div className="journey__avatar-bear">
+                  <Character size="medium" />
+                  <div className="journey__level-badge" aria-hidden>
+                    {level}
+                  </div>
+                </div>
               </div>
+              <p className="journey__avatar-caption">
+                {currentSkill}
+              </p>
             </div>
             <div style={{ flex: 1, width: '100%' }}>
               <div

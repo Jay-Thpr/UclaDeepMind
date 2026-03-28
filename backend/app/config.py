@@ -17,6 +17,19 @@ class Settings(BaseSettings):
     # Still-image form markup (Nano Banana 2); REST generateContent, not Live WebSocket.
     gemini_image_model: str = "gemini-3.1-flash-image-preview"
 
+    # Background removal after image gen: local rembg (default) or remove.bg API
+    # rembg | remove_bg
+    background_removal_provider: str = "rembg"
+
+    # remove.bg — only when BACKGROUND_REMOVAL_PROVIDER=remove_bg
+    # https://www.remove.bg/api
+    remove_bg_api_key: str = ""
+
+    # rembg quality (pixel art / sprites): crisper edges, less “washed out” halos
+    rembg_post_process_mask: bool = True
+    # 1–255: snap alpha to fully opaque/transparent; 0 = leave rembg’s soft alpha
+    rembg_alpha_threshold: int = 200
+
     @property
     def cors_origins_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]

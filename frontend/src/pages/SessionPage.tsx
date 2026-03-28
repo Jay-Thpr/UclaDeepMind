@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useGeminiLiveSession } from '../hooks/useGeminiLiveSession'
 import { useCameraStream } from '../hooks/useCameraStream'
 import './Page.css'
@@ -16,6 +17,7 @@ const TIPS = [
 ]
 
 export function SessionPage() {
+  const navigate = useNavigate()
   const { videoRef, mediaStream, status, errorMessage, start, stop, isLive } =
     useCameraStream({ audio: true })
   const [videoFrameReady, setVideoFrameReady] = useState(false)
@@ -59,6 +61,12 @@ export function SessionPage() {
   const handleEndSession = () => {
     void disconnectCoach()
     stop()
+    navigate('/level-up', {
+      state: {
+        durationSec: elapsed,
+        skillLabel: 'Knife skills',
+      },
+    })
   }
 
   const phaseCurrent = coachPhase === 'live' ? 4 : coachPhase === 'connecting' ? 3 : 2

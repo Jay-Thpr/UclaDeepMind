@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.routers import annotations, auth, health, live, research, sessions, skills, users
+from app.routers import annotations, auth, characters, health, live, research, sessions, skills, users
 
 app = FastAPI(
     title="AI Skill Learner API",
@@ -19,6 +19,7 @@ app.add_middleware(
 )
 
 app.include_router(annotations.router)
+app.include_router(characters.router)
 app.include_router(health.router)
 app.include_router(auth.router)
 app.include_router(users.router)
