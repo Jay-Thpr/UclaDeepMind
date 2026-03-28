@@ -2,8 +2,10 @@ import { useEffect, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { ArrowRight, Sparkles } from 'lucide-react'
 import type { SkillOut } from '../api/skills'
-import { Character } from '../components/Character'
 import './Page.css'
+
+/** Served from `public/volley_bear.png` */
+const LEVEL_UP_AVATAR_SRC = '/volley_bear.png'
 
 type LevelUpState = {
   durationSec?: number
@@ -109,7 +111,13 @@ export function LevelUpPage() {
         <div className="level-up__column">
           <span className="level-up__column-label">Your hero now</span>
           <div className="level-up__avatar-card">
-            <Character size="large" />
+            <img
+              src={LEVEL_UP_AVATAR_SRC}
+              alt="Volley bear mascot"
+              className="level-up__avatar-img"
+              width={120}
+              height={120}
+            />
             <span className="level-up__lvl-pill">Lv. {prevLevel}</span>
           </div>
         </div>
@@ -126,7 +134,13 @@ export function LevelUpPage() {
             className={`level-up__avatar-card${leveledUp ? ' level-up__avatar-card--glow' : ''}`}
           >
             <div className="level-up__avatar-with-item">
-              <Character size="large" />
+              <img
+                src={LEVEL_UP_AVATAR_SRC}
+                alt="Volley bear mascot"
+                className="level-up__avatar-img"
+                width={120}
+                height={120}
+              />
               {leveledUp ? (
                 <div className="level-up__new-item" title={`New: ${newItemLabel}`}>
                   <span className="level-up__new-item-emoji" aria-hidden>

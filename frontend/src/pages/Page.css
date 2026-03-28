@@ -579,6 +579,14 @@
   z-index: 1;
 }
 
+.journey__avatar-img {
+  display: block;
+  width: 7rem;
+  max-width: 100%;
+  height: auto;
+  image-rendering: crisp-edges;
+}
+
 .journey__avatar-caption {
   margin: 0;
   width: 100%;
@@ -1590,25 +1598,6 @@
   box-shadow: 0 4px 20px rgba(100, 140, 110, 0.06);
 }
 
-.session-live__security {
-  font-size: 0.8rem;
-  color: var(--text-muted);
-  line-height: 1.45;
-}
-
-.session-live__security code {
-  font-size: 0.75rem;
-  padding: 0.1rem 0.35rem;
-  border-radius: 6px;
-  background: var(--bg-soft);
-  border: 1px solid var(--border-strong);
-}
-
-.session-live__security a {
-  color: #3d6080;
-  font-weight: 600;
-}
-
 .session-live__captions {
   display: flex;
   flex-direction: column;
@@ -1844,6 +1833,13 @@
   flex-direction: column;
   align-items: center;
   padding: 1rem 1rem 0.5rem;
+}
+
+.level-up__avatar-img {
+  display: block;
+  width: min(140px, 100%);
+  height: auto;
+  image-rendering: crisp-edges;
 }
 
 .level-up__avatar-card--glow {
