@@ -24,20 +24,20 @@ Optional: copy env defaults (CORS, future API keys):
 cp ../.env.example .env
 ```
 
-Start the API (default: [http://127.0.0.1:8000](http://127.0.0.1:8000)):
+Start the API (default: [http://127.0.0.1:3000](http://127.0.0.1:3000)):
 
 ```bash
-uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+uvicorn app.main:app --reload --host 127.0.0.1 --port 3000
 ```
 
 Check health:
 
 ```bash
-curl -s http://127.0.0.1:8000/api/health
+curl -s http://127.0.0.1:3000/api/health
 # {"status":"ok"}
 ```
 
-API docs: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
+API docs: [http://127.0.0.1:3000/docs](http://127.0.0.1:3000/docs)
 
 ### 2. Frontend
 
@@ -100,7 +100,7 @@ The API stores **skills**, **research notes** (versioned per skill), and a **pro
 | `POST` | `/api/skills/create-with-research` | `title`, `goal`, `level`, optional `category` — Gemini research dossier (`GEMINI_RESEARCH_MODEL`), then save skill + research |
 | `GET` | `/api/sessions` | Recent events with `kind === "session"` across all skills (convention for coaching runs) |
 
-Use [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs) to try authenticated calls (use **Authorize** with a session cookie, or sign in via the browser and copy the cookie into Swagger).
+Use [http://127.0.0.1:3000/docs](http://127.0.0.1:3000/docs) to try authenticated calls (use **Authorize** with a session cookie, or sign in via the browser and copy the cookie into Swagger).
 
 ### List models for your API key
 

@@ -64,7 +64,7 @@ export function HomePage() {
                 API:{' '}
                 {apiStatus === 'checking' && 'checking…'}
                 {apiStatus === 'ok' && 'connected'}
-                {apiStatus === 'error' && 'offline (run backend on :8000)'}
+                {apiStatus === 'error' && 'offline (run backend on :3000)'}
               </div>
             </div>
           </div>

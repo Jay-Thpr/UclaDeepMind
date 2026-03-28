@@ -19,7 +19,7 @@ app = FastAPI(
     description="FastAPI backend for research, live coaching, and Workspace persistence.",
     version="0.1.0",
     lifespan=lifespan,
-    # Avoid 307 /api/foo -> http://127.0.0.1:8000/api/foo/ which drops cookies set on localhost
+    # Avoid 307 /api/foo -> http://127.0.0.1:3000/api/foo/ which drops cookies set on localhost
     redirect_slashes=False,
 )
 
