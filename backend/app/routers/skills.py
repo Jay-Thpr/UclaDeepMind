@@ -10,8 +10,6 @@ from app.deps import require_user
 from app.schemas.skills import (
     LessonPlan,
     LessonPlanOut,
-    LiveCoachContextOut,
-    LiveSystemInstructionOut,
     ProgressCreate,
     ProgressOut,
     ResearchCreate,
@@ -26,7 +24,6 @@ from app.schemas.skills import (
     SkillWithResearchResponse,
 )
 from app.services.lesson_plan_gemini import generate_lesson_plan
-from app.services.live_context import build_live_system_instruction_response
 from app.services.session_summary_docs import export_session_summary_to_docs
 from app.services.session_progress_gemini import estimate_session_progress_delta
 from app.services.session_summary_gemini import generate_session_summary_text
@@ -380,86 +377,6 @@ def complete_session(
         session_summary=_summary_out(summary),
         docs_export_url=docs_export_url,
     )
-
-
-_RESEARCH_LIVE_CONTEXT_MAX_CHARS = 12_000
-_PROGRESS_EVENTS_FOR_LIVE = 25
-
-
-@router.get("/{skill_id}/live-coach-context", response_model=LiveCoachContextOut)
-def live_coach_context(
-    skill_id: str,
-    user: dict = Depends(require_user),
-    session: Session = Depends(get_session),
-) -> LiveCoachContextOut:
-    """
-    Bundle SQLite-backed skill, latest research dossier, and recent progress events
-    for the browser to build Gemini Live system instructions.
-    """
-    user_sub = str(user["id"])
-    skill = _get_skill_owned(session, skill_id, user_sub)
-
-    r_stmt = (
-        select(SkillResearch)
-        .where(SkillResearch.skill_id == skill_id)
-        .order_by(SkillResearch.created_at.desc())
-        .limit(1)
-    )
-    r = session.exec(r_stmt).first()
-    research_out: Optional[ResearchOut] = None
-    if r is not None:
-        content = r.content or ""
-        if len(content) > _RESEARCH_LIVE_CONTEXT_MAX_CHARS:
-            content = (
-                content[:_RESEARCH_LIVE_CONTEXT_MAX_CHARS]
-                + "\n\n[Research dossier truncated for live session context.]"
-            )
-        research_out = ResearchOut(
-            id=r.id,
-            skill_id=r.skill_id,
-            title=r.title,
-            content=content,
-            extra=r.extra,
-            created_at=r.created_at,
-        )
-
-    p_stmt = (
-        select(SkillProgressEvent)
-        .where(SkillProgressEvent.skill_id == skill_id)
-        .order_by(SkillProgressEvent.created_at.desc())
-        .limit(_PROGRESS_EVENTS_FOR_LIVE)
-    )
-    prog_rows = session.exec(p_stmt).all()
-    events = [
-        ProgressOut(
-            id=e.id,
-            skill_id=e.skill_id,
-            kind=e.kind,
-            label=e.label,
-            detail=e.detail,
-            metric_value=e.metric_value,
-            created_at=e.created_at,
-        )
-        for e in prog_rows
-    ]
-
-    return LiveCoachContextOut(
-        skill=_skill_out(skill),
-        research=research_out,
-        progress_events=events,
-    )
-
-
-@router.get("/{skill_id}/live-system-instruction", response_model=LiveSystemInstructionOut)
-def live_system_instruction(
-    skill_id: str,
-    user: dict = Depends(require_user),
-    session: Session = Depends(get_session),
-) -> LiveSystemInstructionOut:
-    """Transitional debug route for the backend-owned Live prompt."""
-    user_sub = str(user["id"])
-    skill = _get_skill_owned(session, skill_id, user_sub)
-    return build_live_system_instruction_response(session=session, skill=skill)
 
 
 @router.get("/{skill_id}", response_model=SkillOut)

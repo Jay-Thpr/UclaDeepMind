@@ -143,14 +143,6 @@ class SkillWithResearchResponse(BaseModel):
     research: ResearchOut
 
 
-class LiveCoachContextOut(BaseModel):
-    """Skill + latest research + recent progress for Gemini Live system instructions."""
-
-    skill: SkillOut
-    research: Optional[ResearchOut] = None
-    progress_events: list[ProgressOut] = Field(default_factory=list)
-
-
 class LiveSystemInstructionOut(BaseModel):
     system_instruction: str
     live_context_version: str

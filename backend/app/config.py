@@ -22,6 +22,8 @@ class Settings(BaseSettings):
     google_client_secret: str = ""
     # Must match an authorized redirect URI in the Google OAuth client (SPA callback).
     google_redirect_uri: str = "http://localhost:5173/auth/callback"
+    # Fernet key used to encrypt stored Google OAuth credentials at rest.
+    google_token_encryption_key: str = ""
     # Optional service-account JSON for best-effort Google Docs summary exports.
     google_docs_service_account_json: str = ""
     # Optional folder where exported summary docs should live.

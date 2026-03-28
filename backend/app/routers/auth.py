@@ -19,6 +19,7 @@ from app.services.google_oauth import (
     fetch_google_userinfo,
     token_expires_at,
 )
+from app.services.secret_crypto import encrypt_secret
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -180,9 +181,9 @@ async def google_exchange(
         created_at=datetime.now(timezone.utc),
     )
     credential.provider = "google"
-    credential.access_token = access_token
+    credential.access_token = encrypt_secret(access_token)
     if refresh_token:
-        credential.refresh_token = refresh_token
+        credential.refresh_token = encrypt_secret(refresh_token)
     credential.token_type = (
         token_payload.get("token_type")
         if isinstance(token_payload.get("token_type"), str)

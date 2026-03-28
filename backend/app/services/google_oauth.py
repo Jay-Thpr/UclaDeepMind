@@ -7,6 +7,7 @@ from sqlmodel import Session
 
 from app.config import settings
 from app.db_models import GoogleOAuthCredential
+from app.services.secret_crypto import decrypt_secret, encrypt_secret
 
 GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
 GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v2/userinfo"
@@ -91,9 +92,10 @@ def get_valid_access_token(session: Session, user_sub: str) -> str | None:
     credential = session.get(GoogleOAuthCredential, user_sub)
     if credential is None:
         return None
-    if credential.access_token and not access_token_is_stale(credential.expires_at):
-        return credential.access_token
-    refresh_token = credential.refresh_token
+    access_token = decrypt_secret(credential.access_token) or ""
+    if access_token and not access_token_is_stale(credential.expires_at):
+        return access_token
+    refresh_token = decrypt_secret(credential.refresh_token)
     if not refresh_token:
         return None
 
@@ -106,9 +108,9 @@ def get_valid_access_token(session: Session, user_sub: str) -> str | None:
     if not isinstance(access_token, str) or not access_token:
         return None
 
-    credential.access_token = access_token
+    credential.access_token = encrypt_secret(access_token)
     if isinstance(refreshed.get("refresh_token"), str) and refreshed["refresh_token"]:
-        credential.refresh_token = refreshed["refresh_token"]
+        credential.refresh_token = encrypt_secret(refreshed["refresh_token"])
     if isinstance(refreshed.get("scope"), str):
         credential.scope = refreshed["scope"]
     if isinstance(refreshed.get("token_type"), str):
@@ -117,7 +119,7 @@ def get_valid_access_token(session: Session, user_sub: str) -> str | None:
     credential.updated_at = datetime.now(timezone.utc)
     session.add(credential)
     session.commit()
-    return credential.access_token
+    return access_token
 
 
 def parse_scope_set(scope: str | None) -> set[str]:

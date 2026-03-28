@@ -8,6 +8,7 @@ const nav = [
   { to: '/', label: 'Home' },
   { to: '/select-skill', label: 'Pick Skill' },
   { to: '/onboarding', label: 'Create Skill' },
+  { to: '/settings', label: 'Settings' },
 ]
 
 export function Layout() {

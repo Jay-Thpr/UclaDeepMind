@@ -8,6 +8,7 @@ import { OnboardingPage } from './pages/OnboardingPage'
 import { LevelUpPage } from './pages/LevelUpPage'
 import { SessionPage } from './pages/SessionPage'
 import { SkillSelectPage } from './pages/SkillSelectPage'
+import { SettingsPage } from './pages/SettingsPage'
 
 export default function App() {
   return (
@@ -22,6 +23,7 @@ export default function App() {
             <Route path="dashboard" element={<DashboardPage />} />
             <Route path="session" element={<SessionPage />} />
             <Route path="level-up" element={<LevelUpPage />} />
+            <Route path="settings" element={<SettingsPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>

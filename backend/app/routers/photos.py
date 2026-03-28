@@ -36,7 +36,10 @@ def upload_photo(
     user_sub = str(user["id"])
     skill = _get_skill_owned(session, body.skill_id, user_sub)
 
-    access_token = get_valid_access_token(session, user_sub)
+    try:
+        access_token = get_valid_access_token(session, user_sub)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
     if not access_token:
         raise HTTPException(
             status_code=409,

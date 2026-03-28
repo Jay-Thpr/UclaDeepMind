@@ -77,13 +77,6 @@ export type ProgressEventOut = {
   created_at: string
 }
 
-/** Skill + latest research + recent progress for Live system instructions. */
-export type LiveCoachContext = {
-  skill: SkillOut
-  research: ResearchOut | null
-  progress_events: ProgressEventOut[]
-}
-
 export async function fetchSkills(): Promise<SkillOut[]> {
   const res = await fetch(`${apiBase}/api/skills`, { credentials: 'include' })
   if (res.status === 401) {
@@ -107,20 +100,6 @@ export async function fetchSkill(skillId: string): Promise<SkillOut> {
     throw new Error(`Failed to load skill: ${res.status}`)
   }
   return res.json() as Promise<SkillOut>
-}
-
-export async function fetchLiveCoachContext(skillId: string): Promise<LiveCoachContext> {
-  const res = await fetch(
-    `${apiBase}/api/skills/${encodeURIComponent(skillId)}/live-coach-context`,
-    { credentials: 'include' },
-  )
-  if (res.status === 401) {
-    throw new Error('Sign in to load coach context.')
-  }
-  if (!res.ok) {
-    throw new Error(`Failed to load coach context: ${res.status}`)
-  }
-  return res.json() as Promise<LiveCoachContext>
 }
 
 function errorFromResponse(res: Response, bodyText: string): string {
