@@ -17,7 +17,13 @@ import {
   findTutorialUrls,
   GEMINI_MODEL,
 } from "./gemini";
-import { createStructuredDoc, type StructuredDocBlock } from "./google-docs";
+import {
+  appendStructuredDocContent,
+  createResearchTabbedDoc,
+  createStructuredDoc,
+  replaceTabContent,
+  type StructuredDocBlock,
+} from "./google-docs";
 import { createDriveFolder } from "./google-drive";
 
 function getAI() {
@@ -384,7 +390,14 @@ export async function persistResearchWorkspace(
   researchModel: SkillResearchModel,
   clarificationQuestions: ClarificationQuestion[],
   auth?: any
-): Promise<{ rootFolderUrl: string; researchDocUrl: string; progressDocUrl: string }> {
+): Promise<{
+  rootFolderUrl: string;
+  researchDocUrl: string;
+  progressDocUrl: string;
+  researchDocId: string;
+  researchLogTabId: string;
+  finalResearchTabId: string;
+}> {
   const slug = slugify(researchModel.metadata.skill);
   const rootFolder = await createDriveFolder(`Glitch Research - ${slug}`, undefined, auth);
   const researchFolder = await createDriveFolder("Research", rootFolder.id, auth);
@@ -393,11 +406,28 @@ export async function persistResearchWorkspace(
   const researchBlocks = buildResearchDocBlocks(researchModel, clarificationQuestions);
   const progressBlocks = buildProgressDocBlocks(researchModel);
 
-  const researchDoc = await createStructuredDoc(
+  const researchDoc = await createResearchTabbedDoc(
     `${researchModel.metadata.skill} Research`,
-    researchBlocks,
     auth,
     researchFolder.id
+  );
+
+  await appendStructuredDocContent(
+    researchDoc.documentId,
+    [
+      { type: "title", text: `${researchModel.metadata.skill} Research Run` },
+      { type: "paragraph", text: "Research started. Live updates will be appended below." },
+      { type: "heading1", text: "Run Log" },
+    ],
+    auth,
+    researchDoc.researchLogTabId
+  );
+
+  await replaceTabContent(
+    researchDoc.documentId,
+    researchBlocks,
+    auth,
+    researchDoc.finalResearchTabId
   );
 
   const progressDoc = await createStructuredDoc(
@@ -411,7 +441,95 @@ export async function persistResearchWorkspace(
     rootFolderUrl: rootFolder.url,
     researchDocUrl: researchDoc.url,
     progressDocUrl: progressDoc.url,
+    researchDocId: researchDoc.documentId,
+    researchLogTabId: researchDoc.researchLogTabId,
+    finalResearchTabId: researchDoc.finalResearchTabId,
   };
+}
+
+export async function appendResearchLogEntry(
+  documentId: string,
+  researchLogTabId: string,
+  message: string,
+  auth: any
+): Promise<void> {
+  await appendStructuredDocContent(
+    documentId,
+    [{ type: "paragraph", text: `${new Date().toLocaleTimeString()}: ${message}` }],
+    auth,
+    researchLogTabId
+  );
+}
+
+export async function initializeResearchWorkspace(
+  skill: string,
+  auth: any
+): Promise<{
+  rootFolderUrl: string;
+  researchDocUrl: string;
+  researchDocId: string;
+  researchLogTabId: string;
+  finalResearchTabId: string;
+  progressFolderId: string;
+}> {
+  const slug = slugify(skill);
+  const rootFolder = await createDriveFolder(`Glitch Research - ${slug}`, undefined, auth);
+  const researchFolder = await createDriveFolder("Research", rootFolder.id, auth);
+  const progressFolder = await createDriveFolder("Progress", rootFolder.id, auth);
+
+  const researchDoc = await createResearchTabbedDoc(
+    `${skill} Research`,
+    auth,
+    researchFolder.id
+  );
+
+  await appendStructuredDocContent(
+    researchDoc.documentId,
+    [
+      { type: "title", text: `${skill} Research Run` },
+      { type: "paragraph", text: "Research started. Live updates will be appended below." },
+      { type: "heading1", text: "Run Log" },
+    ],
+    auth,
+    researchDoc.researchLogTabId
+  );
+
+  return {
+    rootFolderUrl: rootFolder.url,
+    researchDocUrl: researchDoc.url,
+    researchDocId: researchDoc.documentId,
+    researchLogTabId: researchDoc.researchLogTabId,
+    finalResearchTabId: researchDoc.finalResearchTabId,
+    progressFolderId: progressFolder.id,
+  };
+}
+
+export async function finalizeResearchWorkspace(
+  researchModel: SkillResearchModel,
+  clarificationQuestions: ClarificationQuestion[],
+  auth: any,
+  researchDocId: string,
+  finalResearchTabId: string,
+  progressFolderId: string
+): Promise<{ progressDocUrl: string }> {
+  const researchBlocks = buildResearchDocBlocks(researchModel, clarificationQuestions);
+  const progressBlocks = buildProgressDocBlocks(researchModel);
+
+  await replaceTabContent(
+    researchDocId,
+    researchBlocks,
+    auth,
+    finalResearchTabId
+  );
+
+  const progressDoc = await createStructuredDoc(
+    `${researchModel.metadata.skill} Progress`,
+    progressBlocks,
+    auth,
+    progressFolderId
+  );
+
+  return { progressDocUrl: progressDoc.url };
 }
 
 function buildResearchDocBlocks(

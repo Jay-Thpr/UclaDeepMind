@@ -187,6 +187,32 @@ Glitch/
 
 Suggested sections:
 
+Use a single Google Doc with two tabs:
+
+1. `Research Log`
+2. `Final Research`
+
+#### Research Log tab
+
+This tab is live-updated during the research run and can be append-only.
+
+Suggested contents:
+
+1. Title
+2. Current Status
+3. Run Log
+4. Clarification activity
+5. Source discovery milestones
+6. Warnings or fallbacks
+
+This tab is for traceability and demo visibility, not context injection.
+
+#### Final Research tab
+
+This tab contains the canonical structured output.
+
+Suggested sections:
+
 1. Title
 2. Skill Overview
 3. Learner Profile
@@ -200,6 +226,8 @@ Suggested sections:
 11. Coaching Strategy
 12. Recommended First Session Focus
 13. Source Appendix
+
+Only this tab should be used for context injection into live coaching.
 
 ### Progress Doc
 
@@ -224,6 +252,12 @@ Use Docs formatting rather than plain inserted text whenever possible:
 - bullet lists
 
 This keeps the docs readable for both demo purposes and operational reuse.
+
+### Tab Update Policy
+
+- `Research Log` is updated incrementally during the run.
+- `Final Research` is written only from finalized structured outputs.
+- The system must never inject `Research Log` into the live coaching context.
 
 ---
 

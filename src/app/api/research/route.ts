@@ -5,13 +5,15 @@ import {
 import { assembleSystemPrompt } from "../../../../lib/session-context";
 import { getUserOAuthClient } from "../../../../lib/getUserAuth";
 import {
+  appendResearchLogEntry,
   buildResearchBrief,
   conductStructuredVideoResearch,
   conductStructuredWebResearch,
+  finalizeResearchWorkspace,
   generateClarificationQuestions,
+  initializeResearchWorkspace,
   mapResearchModelToSkillModel,
   parseLearnerProfile,
-  persistResearchWorkspace,
   synthesizeResearchModel,
 } from "../../../../lib/research";
 import type {
@@ -50,94 +52,137 @@ export async function POST(req: NextRequest) {
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
     async start(controller) {
-      const emit = (type: string, data: object | string) => {
-        const payload = typeof data === "string" ? { message: data } : data;
+      let oauthClient: any | null = null;
+      let researchLogTarget: { documentId: string; researchLogTabId: string } | null = null;
+      let workspaceState: {
+        rootFolderUrl: string;
+        researchDocUrl: string;
+        researchDocId: string;
+        researchLogTabId: string;
+        finalResearchTabId: string;
+        progressFolderId: string;
+      } | null = null;
+
+      const emit = async (type: string, data: object | string) => {
+        const payload: Record<string, unknown> = typeof data === "string" ? { message: data } : (data as Record<string, unknown>);
         controller.enqueue(
           encoder.encode(`data: ${JSON.stringify({ type, ...payload })}\n\n`)
         );
+
+        if (type === "status" && researchLogTarget && typeof payload.message === "string" && oauthClient) {
+          try {
+            await appendResearchLogEntry(
+              researchLogTarget.documentId,
+              researchLogTarget.researchLogTabId,
+              payload.message,
+              oauthClient
+            );
+          } catch (error) {
+            console.error("[research] Failed to append log entry:", error);
+          }
+        }
       };
 
       try {
         // Demo fallback
         if (process.env.GLITCH_USE_DEMO_DOC === "true") {
           const { default: demoDoc } = await import("../../../../data/cooking-skill-demo.json");
-          emit("status", { message: "Loading demo coaching plan..." });
+          await emit("status", { message: "Loading demo coaching plan..." });
           await new Promise(r => setTimeout(r, 800));
           emit("done", { skillModel: demoDoc, docUrl: null, systemPrompt: "" });
           controller.close();
           return;
         }
 
-        emit("status", { message: `🔍 Starting research for "${intake.skill}"...` });
+        await emit("status", { message: `🔍 Starting research for "${intake.skill}"...` });
 
-        emit("status", { message: "🧾 Parsing learner profile..." });
+        await emit("status", { message: "🧾 Parsing learner profile..." });
         const learnerProfile = await parseLearnerProfile(intake);
 
         const clarificationAnswers = Array.isArray((intake as any).clarificationAnswers)
           ? ((intake as any).clarificationAnswers as ClarificationAnswer[])
           : [];
 
-        emit("status", { message: "❓ Checking whether clarification is needed..." });
+        await emit("status", { message: "❓ Checking whether clarification is needed..." });
         const clarificationQuestions = await generateClarificationQuestions(learnerProfile);
         if (clarificationQuestions.length > 0 && clarificationAnswers.length === 0) {
-          emit("clarification_required", { questions: clarificationQuestions });
-          emit("status", { message: `❓ ${clarificationQuestions.length} clarification questions identified` });
+          await emit("clarification_required", { questions: clarificationQuestions });
+          await emit("status", { message: `❓ ${clarificationQuestions.length} clarification questions identified` });
           controller.close();
           return;
         } else {
-          emit("status", { message: "✅ No clarification questions needed" });
+          await emit("status", { message: "✅ No clarification questions needed" });
         }
 
-        emit("status", { message: "🗺️ Building research brief..." });
+        await emit("status", { message: "🗺️ Building research brief..." });
         const researchBrief = await buildResearchBrief(learnerProfile, clarificationAnswers);
+
+        try {
+          oauthClient = await getUserOAuthClient();
+          if (oauthClient) {
+            workspaceState = await initializeResearchWorkspace(researchBrief.skill, oauthClient);
+            researchLogTarget = {
+              documentId: workspaceState.researchDocId,
+              researchLogTabId: workspaceState.researchLogTabId,
+            };
+            await emit("status", { message: "🗂️ Research workspace initialized" });
+          }
+        } catch {
+          oauthClient = null;
+        }
 
         const [illustrationUrl, webResearch, videoResearch] = await Promise.all([
           generateSkillIllustration(intake.skill).then(url => {
-            emit("status", { message: "🎨 Skill illustration generated" });
-            emit("illustration", { url });
+            void emit("status", { message: "🎨 Skill illustration generated" });
+            void emit("illustration", { url });
             return url;
           }),
           conductStructuredWebResearch(researchBrief).then((result) => {
             const firstFinding = result.findings[0];
             if (firstFinding) {
-              emit("status", {
+              void emit("status", {
                 message: `✅ Web research captured ${firstFinding.properForm.slice(0, 3).length} proper-form signals`,
               });
             }
             return result;
           }),
           conductStructuredVideoResearch(researchBrief, (title) =>
-            emit("status", { message: `✅ Analyzed: "${title}"` })
+            void emit("status", { message: `✅ Analyzed: "${title}"` })
           ).then((result) => {
-            emit("status", { message: `📺 Analyzed ${result.videos.length} tutorial videos` });
+            void emit("status", { message: `📺 Analyzed ${result.videos.length} tutorial videos` });
             return result;
           }),
         ]);
 
-        emit("status", { message: "🧠 Synthesizing research model..." });
+        await emit("status", { message: "🧠 Synthesizing research model..." });
         const researchModel = await synthesizeResearchModel(
           researchBrief,
           webResearch.findings,
           videoResearch.videos
         );
         const skillModel = mapResearchModelToSkillModel(researchModel, illustrationUrl);
-        emit("status", { message: "✅ Coaching plan ready" });
+        await emit("status", { message: "✅ Coaching plan ready" });
 
-        emit("status", { message: "📄 Saving research workspace..." });
+        await emit("status", { message: "📄 Saving research workspace..." });
         let docUrl: string | null = null;
         let progressDocUrl: string | null = null;
         let rootFolderUrl: string | null = null;
         try {
-          const oauthClient = await getUserOAuthClient();
-          const workspace = await persistResearchWorkspace(
-            researchModel,
-            clarificationQuestions,
-            oauthClient
-          );
-          docUrl = workspace.researchDocUrl;
-          progressDocUrl = workspace.progressDocUrl;
-          rootFolderUrl = workspace.rootFolderUrl;
-          emit("status", { message: "✅ Saved research and progress docs to Drive" });
+          if (oauthClient && workspaceState) {
+            const finalized = await finalizeResearchWorkspace(
+              researchModel,
+              clarificationQuestions,
+              oauthClient
+              ,
+              workspaceState.researchDocId,
+              workspaceState.finalResearchTabId,
+              workspaceState.progressFolderId
+            );
+            docUrl = workspaceState.researchDocUrl;
+            progressDocUrl = finalized.progressDocUrl;
+            rootFolderUrl = workspaceState.rootFolderUrl;
+          }
+          await emit("status", { message: "✅ Saved research and progress docs to Drive" });
         } catch (err: any) {
           if (err?.message !== "NO_CREDENTIALS") {
             console.error("[research] Docs write failed:", err);
@@ -147,7 +192,7 @@ export async function POST(req: NextRequest) {
         // ── ASSEMBLE SYSTEM PROMPT ──
         const systemPrompt = assembleSystemPrompt(skillModel, null);
 
-        emit("done", {
+        await emit("done", {
           skillModel,
           researchModel,
           skillModelJson: JSON.stringify(skillModel),
@@ -159,7 +204,7 @@ export async function POST(req: NextRequest) {
 
       } catch (err) {
         console.error("[research] Pipeline error:", err);
-        emit("error", { message: "Research pipeline failed" });
+        await emit("error", { message: "Research pipeline failed" });
       } finally {
         controller.close();
       }

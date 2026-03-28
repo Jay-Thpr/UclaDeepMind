@@ -12,6 +12,13 @@ export type StructuredDocBlock =
   | { type: "paragraph"; text: string }
   | { type: "bullets"; items: string[] };
 
+export interface TabbedResearchDoc {
+  documentId: string;
+  url: string;
+  researchLogTabId: string;
+  finalResearchTabId: string;
+}
+
 /**
  * Creates a new Google Doc with the given title, writes the content, and
  * optionally moves it to a Drive folder (GOOGLE_DRIVE_FOLDER_ID env var).
@@ -214,15 +221,18 @@ export async function createStructuredDoc(
 export async function appendStructuredDocContent(
   documentId: string,
   blocks: StructuredDocBlock[],
-  auth?: any
+  auth?: any,
+  tabId?: string
 ): Promise<void> {
   const resolvedAuth = buildAuth(auth ?? null);
   const docs = google.docs({ version: "v1", auth: resolvedAuth });
 
-  const docRes = await docs.documents.get({ documentId });
-  const endIndex = docRes.data.body?.content?.slice(-1)[0]?.endIndex ?? 1;
+  const docRes = await docs.documents.get({ documentId, includeTabsContent: Boolean(tabId) });
+  const endIndex = tabId
+    ? getTabEndIndex(docRes.data, tabId)
+    : docRes.data.body?.content?.slice(-1)[0]?.endIndex ?? 1;
   const insertIndex = Math.max(1, endIndex - 1);
-  const requests = buildStructuredDocRequests(blocks, insertIndex);
+  const requests = buildStructuredDocRequests(blocks, insertIndex, tabId);
 
   if (requests.length === 0) return;
 
@@ -232,9 +242,108 @@ export async function appendStructuredDocContent(
   });
 }
 
+export async function replaceTabContent(
+  documentId: string,
+  blocks: StructuredDocBlock[],
+  auth: any,
+  tabId: string
+): Promise<void> {
+  const resolvedAuth = buildAuth(auth ?? null);
+  const docs = google.docs({ version: "v1", auth: resolvedAuth });
+  const docRes = await docs.documents.get({ documentId, includeTabsContent: true });
+  const endIndex = getTabEndIndex(docRes.data, tabId);
+  const requests: any[] = [];
+
+  if (endIndex > 1) {
+    requests.push({
+      deleteContentRange: {
+        range: {
+          startIndex: 1,
+          endIndex: endIndex - 1,
+          tabId,
+        },
+      },
+    });
+  }
+
+  requests.push(...buildStructuredDocRequests(blocks, 1, tabId));
+
+  if (requests.length === 0) return;
+
+  await docs.documents.batchUpdate({
+    documentId,
+    requestBody: { requests },
+  });
+}
+
+export async function createResearchTabbedDoc(
+  title: string,
+  auth: any,
+  parentFolderId?: string
+): Promise<TabbedResearchDoc> {
+  const resolvedAuth = buildAuth(auth ?? null);
+  const docs = google.docs({ version: "v1", auth: resolvedAuth });
+
+  const createRes = await docs.documents.create({ requestBody: { title } });
+  const documentId = createRes.data.documentId;
+  if (!documentId) {
+    throw new Error("Docs API did not return a documentId");
+  }
+
+  if (parentFolderId) {
+    await moveFileToFolder(documentId, parentFolderId, resolvedAuth);
+  }
+
+  const initialDoc = await docs.documents.get({ documentId, includeTabsContent: true });
+  const firstTabId = initialDoc.data.tabs?.[0]?.tabProperties?.tabId;
+  if (!firstTabId) {
+    throw new Error("Could not determine the initial document tab ID");
+  }
+
+  const batchRes = await docs.documents.batchUpdate({
+    documentId,
+    requestBody: {
+      requests: [
+        {
+          updateDocumentTabProperties: {
+            tabProperties: {
+              tabId: firstTabId,
+              title: "Research Log",
+            },
+            fields: "title",
+          },
+        },
+        {
+          addDocumentTab: {
+            tabProperties: {
+              title: "Final Research",
+              index: 1,
+            },
+          },
+        },
+      ],
+    },
+  });
+
+  const finalResearchTabId =
+    batchRes.data.replies?.[1]?.addDocumentTab?.tabProperties?.tabId;
+
+  if (!finalResearchTabId) {
+    throw new Error("Could not determine the final research tab ID");
+  }
+
+  return {
+    documentId,
+    url: `https://docs.google.com/document/d/${documentId}`,
+    researchLogTabId: firstTabId,
+    finalResearchTabId,
+  };
+}
+
 function buildStructuredDocRequests(
   blocks: StructuredDocBlock[],
-  insertIndex: number
+  insertIndex: number,
+  tabId?: string
 ): any[] {
   const normalizedBlocks = blocks.flatMap((block) => {
     if (block.type === "bullets" && block.items.length === 0) {
@@ -266,6 +375,7 @@ function buildStructuredDocRequests(
           range: {
             startIndex: bulletStart,
             endIndex: bulletStart + bulletText.length,
+            ...(tabId ? { tabId } : {}),
           },
           bulletPreset: "BULLET_DISC_CIRCLE_SQUARE",
         },
@@ -293,6 +403,7 @@ function buildStructuredDocRequests(
         range: {
           startIndex,
           endIndex,
+          ...(tabId ? { tabId } : {}),
         },
         paragraphStyle: {
           namedStyleType,
@@ -305,10 +416,26 @@ function buildStructuredDocRequests(
   return [
     {
       insertText: {
-        location: { index: insertIndex },
+        location: { index: insertIndex, ...(tabId ? { tabId } : {}) },
         text: fullText,
       },
     },
     ...trailingRequests,
   ];
+}
+
+function getTabEndIndex(document: any, tabId: string): number {
+  const tab = findTabById(document.tabs || [], tabId);
+  return tab?.documentTab?.body?.content?.slice(-1)[0]?.endIndex ?? 1;
+}
+
+function findTabById(tabs: any[], tabId: string): any | null {
+  for (const tab of tabs) {
+    if (tab.tabProperties?.tabId === tabId) {
+      return tab;
+    }
+    const child = findTabById(tab.childTabs || [], tabId);
+    if (child) return child;
+  }
+  return null;
 }
