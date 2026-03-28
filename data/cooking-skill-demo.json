@@ -1,0 +1,82 @@
+{
+  "skill": "knife skills",
+  "generatedAt": "2026-03-27",
+  "note": "Pre-computed demo fallback — used when GLITCH_USE_DEMO_DOC=true",
+  "techniqueSteps": [
+    {
+      "step": 1,
+      "name": "Grip",
+      "description": "Pinch grip: thumb and index finger pinch the blade just above the bolster. Remaining three fingers wrap the handle. This gives control and reduces fatigue."
+    },
+    {
+      "step": 2,
+      "name": "Claw hand",
+      "description": "Curl fingertips under, knuckles forward. Knuckles guide the blade side — the knife never contacts fingertips."
+    },
+    {
+      "step": 3,
+      "name": "Push cut",
+      "description": "Lead with the heel, push forward and down through the ingredient. Wrist stays level. Blade stays in contact with the knuckle guide throughout the stroke."
+    },
+    {
+      "step": 4,
+      "name": "Rock chop",
+      "description": "Tip stays on board. Pivot from the tip, rocking the blade down and forward. Good for herbs and fine mince."
+    },
+    {
+      "step": 5,
+      "name": "Julienne",
+      "description": "Square the vegetable first (four flat sides). Slice into planks of equal thickness. Stack planks, cut into matchsticks. Consistent thickness = even cooking."
+    }
+  ],
+  "commonMistakes": [
+    {
+      "rank": 1,
+      "mistake": "Flat-palm hand (fingertips exposed)",
+      "observable": "Fingertips extend past knuckles toward blade",
+      "correction": "Curl fingertips under — knuckles act as the blade guide"
+    },
+    {
+      "rank": 2,
+      "mistake": "Lifting the knife fully off the board between cuts",
+      "observable": "Blade rises more than 3cm between strokes",
+      "correction": "Keep blade tip in contact with board; rock or slide — don't lift"
+    },
+    {
+      "rank": 3,
+      "mistake": "Wrist higher than elbow during push cut",
+      "observable": "Wrist angle breaks upward; uneven slice thickness",
+      "correction": "Level wrist, drive motion from shoulder and elbow"
+    },
+    {
+      "rank": 4,
+      "mistake": "Gripping handle too far back",
+      "observable": "Full palm on handle, no thumb/index contact with blade",
+      "correction": "Move hand forward into pinch grip — one inch toward the blade"
+    }
+  ],
+  "progressionMilestones": [
+    "Consistent claw hand with no fingertip exposure (session 1)",
+    "Pinch grip feels natural; no handle-only grip (session 1-2)",
+    "Uniform slice thickness within 2mm on carrots (session 2-3)",
+    "Push cut rhythm without pausing between strokes (session 3-4)",
+    "Clean julienne on a zucchini: 5mm x 5mm matchsticks (session 4-6)"
+  ],
+  "keyTimestamps": [
+    {
+      "topic": "Pinch grip demonstration",
+      "url": "https://www.youtube.com/watch?v=demo1",
+      "timestamp": "0:45"
+    },
+    {
+      "topic": "Claw hand close-up",
+      "url": "https://www.youtube.com/watch?v=demo1",
+      "timestamp": "2:10"
+    },
+    {
+      "topic": "Push cut vs rock chop comparison",
+      "url": "https://www.youtube.com/watch?v=demo2",
+      "timestamp": "1:30"
+    }
+  ]
+}
