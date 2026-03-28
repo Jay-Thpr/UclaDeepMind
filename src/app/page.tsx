@@ -1,145 +1,123 @@
 "use client";
 
-import { useState } from "react";
+import { motion } from "framer-motion";
+import { ArrowRight, Video, Brain, PenTool } from "lucide-react";
+import Link from "next/link";
+import { useState, useEffect } from "react";
 
-// Research pipeline step labels — shown in status panel during the three API steps
-const STEP_LABELS: Record<number, string> = {
-  1: "Finding tutorials...",
-  2: "Analyzing videos...",
-  3: "Writing skill document...",
-};
+export default function StartScreen() {
+  const [isReturningUser, setIsReturningUser] = useState(false);
 
-type ResearchStatus = "idle" | "researching" | "done" | "error";
+  // Simulate returning user toggle for demo purposes
+  useEffect(() => {
+    const returning = localStorage.getItem("isReturningUser") === "true";
+    setIsReturningUser(returning);
+  }, []);
 
-export default function SkillSelectionPage() {
-  const [skill, setSkill] = useState("");
-  const [status, setStatus] = useState<ResearchStatus>("idle");
-  const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
-  const [docUrl, setDocUrl] = useState<string | null>(null);
-
-  async function handleResearch() {
-    if (!skill.trim() || status === "researching") return;
-
-    setStatus("researching");
-    setCurrentStep(1);
-    setDocUrl(null);
-
-    try {
-      // The API route streams progress via polling — we simulate step progression
-      // while waiting for the single POST to complete.
-      // Step 1 shown immediately; steps 2 and 3 advance on a timer to match
-      // typical pipeline duration (15-40s total per RESEARCH.md open question #2).
-      const stepTimer2 = setTimeout(() => setCurrentStep(2), 8000);  // ~8s: grounding done
-      const stepTimer3 = setTimeout(() => setCurrentStep(3), 20000); // ~20s: analysis done
-
-      const res = await fetch("/api/research", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ skill: skill.trim() }),
-      });
-
-      clearTimeout(stepTimer2);
-      clearTimeout(stepTimer3);
-
-      if (!res.ok) {
-        setStatus("error");
-        return;
-      }
-
-      const data = await res.json();
-      if (data.success) {
-        setDocUrl(data.docUrl ?? null);
-        setStatus("done");
-      } else {
-        setStatus("error");
-      }
-    } catch {
-      setStatus("error");
-    }
-  }
-
-  const isResearching = status === "researching";
-  const isDisabled = !skill.trim() || isResearching;
+  const toggleUserMode = () => {
+    const newState = !isReturningUser;
+    setIsReturningUser(newState);
+    localStorage.setItem("isReturningUser", String(newState));
+  };
 
   return (
-    <main className="min-h-screen flex flex-col items-center justify-center gap-6 p-8 bg-zinc-950">
-      <h1 className="text-3xl font-bold text-zinc-50 text-center">
-        What do you want to learn?
-      </h1>
+    <div className="flex-1 flex flex-col items-center justify-center px-4 relative overflow-hidden">
+      {/* Background ambient glow */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden">
+        <div className="absolute top-1/4 left-1/4 w-[500px] h-[500px] bg-emerald-500/10 rounded-full blur-[120px]" />
+        <div className="absolute bottom-1/4 right-1/4 w-[600px] h-[600px] bg-blue-500/10 rounded-full blur-[120px]" />
+      </div>
 
-      <input
-        type="text"
-        aria-label="Enter a skill to research"
-        className="bg-zinc-900 border border-zinc-700 rounded-lg px-4 py-3 w-80 text-base text-zinc-50 placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-blue-600"
-        placeholder="e.g. knife skills, juggling, golf swing"
-        value={skill}
-        onChange={(e) => setSkill(e.target.value)}
-        onKeyDown={(e) => e.key === "Enter" && handleResearch()}
-        disabled={isResearching}
-      />
-
-      <button
-        type="button"
-        aria-label="Start researching the entered skill"
-        className="bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm px-6 py-3 rounded-lg min-h-[44px] w-80 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        onClick={handleResearch}
-        disabled={isDisabled}
-      >
-        {isResearching ? "Researching..." : "Start Research"}
-      </button>
-
-      {status === "done" && (
-        <a
-          href={`/session?skill=${encodeURIComponent(skill)}`}
-          className="bg-green-600 hover:bg-green-500 text-white font-bold text-sm px-6 py-3 rounded-lg min-h-[44px] w-80 flex items-center justify-center transition-colors"
+      <div className="max-w-3xl w-full flex flex-col items-center text-center z-10">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
         >
-          Start Coaching Session →
-        </a>
-      )}
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-xs font-medium text-zinc-300 mb-8 backdrop-blur-sm">
+            <span className="flex h-2 w-2 rounded-full bg-emerald-500" />
+            Live Video Analysis System Active
+          </div>
+          
+          <h1 className="text-5xl md:text-7xl font-bold tracking-tight mb-6 text-balance">
+            {isReturningUser ? "Welcome back." : "Learn anything. Get coached live."}
+          </h1>
+          <p className="text-lg md:text-xl text-zinc-400 mb-10 max-w-2xl mx-auto text-balance">
+            {isReturningUser 
+              ? "Your AI coach has analyzed your progress. Let's pick up where you left off." 
+              : "AI that teaches itself your skill, then teaches you — with real-time video feedback."}
+          </p>
+        </motion.div>
 
-      {/* Status panel — shown during researching, done, and error states */}
-      {status !== "idle" && (
-        <div
-          className="bg-zinc-900 rounded-lg px-6 py-4 w-80 flex items-center gap-3"
-          role="status"
-          aria-live="polite"
-        >
-          {isResearching && (
-            <>
-              {/* Spinner */}
-              <span
-                className="inline-block w-4 h-4 border-2 border-zinc-500 border-t-transparent rounded-full animate-spin flex-shrink-0"
-                aria-hidden="true"
-              />
-              <span className="text-sm font-bold text-zinc-400">
-                {STEP_LABELS[currentStep]}
-              </span>
-            </>
-          )}
-
-          {status === "done" && (
-            <div className="flex flex-col gap-2">
-              <span className="text-sm font-bold text-zinc-400">Skill document ready</span>
-              {docUrl && (
-                <a
-                  href={docUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-blue-400 underline text-sm hover:text-blue-300"
-                >
-                  View in Google Docs
-                </a>
-              )}
+        {isReturningUser ? (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.2 }}
+            className="flex flex-col items-center w-full max-w-md gap-6"
+          >
+            <div className="w-full p-6 rounded-2xl bg-zinc-900/50 border border-zinc-800 backdrop-blur-md text-left flex items-start gap-4">
+              <div className="w-16 h-16 rounded-xl overflow-hidden bg-zinc-800 flex-shrink-0 flex items-center justify-center relative">
+                {/* Simulated generated icon for returning user */}
+                <div className="absolute inset-0 opacity-20 bg-[url('https://images.unsplash.com/photo-1595759747514-6c3ece83d1ba?q=80&w=200&auto=format&fit=crop')] bg-cover" />
+                <PenTool className="w-8 h-8 text-emerald-400" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-white">Knife Skills</h3>
+                <p className="text-zinc-400 text-sm mb-2">Session 6 • Focus: Rocking cut</p>
+                <div className="flex gap-2 text-xs">
+                  <span className="px-2 py-1 bg-emerald-500/20 text-emerald-400 rounded-md">2 Mastered</span>
+                  <span className="px-2 py-1 bg-zinc-800 text-zinc-300 rounded-md">3 Sessions</span>
+                </div>
+              </div>
             </div>
-          )}
 
-          {status === "error" && (
-            <p className="text-sm font-bold text-red-400">
-              Research failed. Try again or check your connection.
+            <div className="flex flex-col sm:flex-row w-full gap-4">
+              <Link href="/session-briefing" className="flex-1">
+                <button className="w-full group relative flex items-center justify-center gap-2 bg-white text-zinc-950 px-8 py-4 rounded-xl font-semibold hover:bg-zinc-200 transition-all duration-300">
+                  Continue Session
+                  <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                </button>
+              </Link>
+              <Link href="/skill-selection" className="flex-1">
+                <button className="w-full flex items-center justify-center gap-2 bg-zinc-900 border border-zinc-800 text-white px-8 py-4 rounded-xl font-semibold hover:bg-zinc-800 transition-all duration-300">
+                  New Skill
+                </button>
+              </Link>
+            </div>
+          </motion.div>
+        ) : (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.2 }}
+            className="flex flex-col items-center w-full"
+          >
+            <Link href="/skill-selection">
+              <button className="group relative flex items-center justify-center gap-2 bg-white text-zinc-950 px-10 py-5 rounded-2xl font-bold text-lg hover:bg-zinc-200 hover:scale-105 transition-all duration-300 active:scale-95 shadow-[0_0_40px_rgba(255,255,255,0.1)]">
+                Start Learning
+                <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+              </button>
+            </Link>
+            
+            <p className="mt-8 text-sm text-zinc-500 flex items-center gap-4">
+              <span className="flex items-center gap-1.5"><Brain className="w-4 h-4"/> Gemini Live</span>
+              <span className="h-1 w-1 rounded-full bg-zinc-700" />
+              <span className="flex items-center gap-1.5"><PenTool className="w-4 h-4"/> Nano Banana</span>
+              <span className="h-1 w-1 rounded-full bg-zinc-700" />
+              <span className="flex items-center gap-1.5"><Video className="w-4 h-4"/> Workspace</span>
             </p>
-          )}
-        </div>
-      )}
-    </main>
+          </motion.div>
+        )}
+      </div>
+
+      {/* Dev toggle for demoing both states */}
+      <button 
+        onClick={toggleUserMode}
+        className="absolute bottom-6 right-6 text-xs text-zinc-500 hover:text-zinc-300 px-3 py-1.5 rounded-md border border-zinc-800 bg-zinc-900/50"
+      >
+        Toggle User State (Dev)
+      </button>
+    </div>
   );
 }
