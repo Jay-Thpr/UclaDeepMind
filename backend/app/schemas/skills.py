@@ -50,12 +50,29 @@ class SessionCompleteBody(BaseModel):
     session_notes: Optional[str] = Field(default=None, max_length=8000)
 
 
+class SkillSessionSummaryOut(BaseModel):
+    id: str
+    skill_id: str
+    session_number: int
+    duration_seconds: int
+    summary_text: str
+    coach_note: Optional[str]
+    progress_delta: float
+    level_ups: int
+    mastered_delta: int
+    input_notes: Optional[str]
+    extra: Optional[dict[str, Any]] = None
+    created_at: datetime
+
+
 class SessionCompleteResponse(BaseModel):
     skill: SkillOut
     coach_note: str
     progress_delta: float
     level_ups: int
     mastered_delta: int
+    session_summary: SkillSessionSummaryOut
+    docs_export_url: Optional[str] = None
 
 
 class ResearchCreate(BaseModel):
@@ -101,3 +118,12 @@ class LiveCoachContextOut(BaseModel):
     skill: SkillOut
     research: Optional[ResearchOut] = None
     progress_events: list[ProgressOut] = Field(default_factory=list)
+
+
+class LiveSystemInstructionOut(BaseModel):
+    system_instruction: str
+    live_context_version: str
+    skill_id: str
+    source_research_id: Optional[str] = None
+    source_progress_event_ids: list[str] = Field(default_factory=list)
+    truncated: bool = False

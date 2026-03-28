@@ -83,7 +83,7 @@ def _migrate_sqlite_skill_stats(engine: Engine) -> None:
 
 def init_db() -> None:
     """Create database file (if SQLite) and all tables."""
-    from app.db_models import Skill, SkillProgressEvent, SkillResearch  # noqa: F401
+    from app.db_models import Skill, SkillProgressEvent, SkillResearch, SkillSessionSummary  # noqa: F401
 
     settings.sqlite_path.parent.mkdir(parents=True, exist_ok=True)
     engine = get_engine()

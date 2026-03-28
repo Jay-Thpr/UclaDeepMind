@@ -1,9 +1,23 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
+from sqlmodel import Session
 
 from app.config import settings
+from app.database import get_session
+from app.deps import get_optional_user
+from app.routers.skills import _get_skill_owned
+from app.services.live_context import (
+    LIVE_CONTEXT_VERSION,
+    build_generic_system_instruction,
+    build_live_system_instruction_response,
+)
 from app.services.live_ephemeral import create_live_ephemeral_token
 
 router = APIRouter(prefix="/api/live", tags=["live"])
+
+
+class LiveEphemeralRequest(BaseModel):
+    skill_id: str | None = None
 
 
 @router.get("/status")
@@ -17,7 +31,11 @@ def live_status() -> dict[str, str | bool]:
 
 
 @router.post("/ephemeral-token")
-def issue_ephemeral_token() -> dict[str, str]:
+def issue_ephemeral_token(
+    body: LiveEphemeralRequest | None = None,
+    user: dict | None = Depends(get_optional_user),
+    session: Session = Depends(get_session),
+) -> dict[str, str | bool | list[str] | None]:
     """
     Return a short-lived access token for the browser to open a Gemini Live
     WebSocket. The long-lived API key stays on the server.
@@ -34,7 +52,29 @@ def issue_ephemeral_token() -> dict[str, str]:
             status_code=502,
             detail=f"Failed to create ephemeral token: {exc}",
         ) from exc
+
+    skill_id = body.skill_id if body else None
+    if skill_id:
+        if user is None:
+            raise HTTPException(status_code=401, detail="Not authenticated")
+        skill = _get_skill_owned(session, skill_id, str(user["id"]))
+        live_ctx = build_live_system_instruction_response(session=session, skill=skill)
+        system_instruction = live_ctx.system_instruction
+        source_research_id = live_ctx.source_research_id
+        source_progress_event_ids = live_ctx.source_progress_event_ids
+        truncated = live_ctx.truncated
+    else:
+        system_instruction = build_generic_system_instruction()
+        source_research_id = None
+        source_progress_event_ids = []
+        truncated = False
+
     return {
         "accessToken": access_token,
         "liveModel": settings.gemini_live_model,
+        "systemInstruction": system_instruction,
+        "liveContextVersion": LIVE_CONTEXT_VERSION,
+        "sourceResearchId": source_research_id,
+        "sourceProgressEventIds": source_progress_event_ids,
+        "truncated": truncated,
     }

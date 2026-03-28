@@ -5,10 +5,11 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel import Session, select
 
 from app.database import get_session
-from app.db_models import Skill, SkillProgressEvent, SkillResearch
+from app.db_models import Skill, SkillProgressEvent, SkillResearch, SkillSessionSummary
 from app.deps import require_user
 from app.schemas.skills import (
     LiveCoachContextOut,
+    LiveSystemInstructionOut,
     ProgressCreate,
     ProgressOut,
     ResearchCreate,
@@ -17,11 +18,15 @@ from app.schemas.skills import (
     SessionCompleteResponse,
     SkillCreate,
     SkillCreateWithResearch,
+    SkillSessionSummaryOut,
     SkillOut,
     SkillUpdate,
     SkillWithResearchResponse,
 )
+from app.services.live_context import build_live_system_instruction_response
+from app.services.session_summary_docs import export_session_summary_to_docs
 from app.services.session_progress_gemini import estimate_session_progress_delta
+from app.services.session_summary_gemini import generate_session_summary_text
 from app.services.skill_research_gemini import generate_skill_research_dossier
 
 router = APIRouter(prefix="/api/skills", tags=["skills"])
@@ -71,6 +76,23 @@ def _skill_out(s: Skill) -> SkillOut:
         last_practice_at=s.last_practice_at,
         created_at=s.created_at,
         updated_at=s.updated_at,
+    )
+
+
+def _summary_out(summary: SkillSessionSummary) -> SkillSessionSummaryOut:
+    return SkillSessionSummaryOut(
+        id=summary.id,
+        skill_id=summary.skill_id,
+        session_number=summary.session_number,
+        duration_seconds=summary.duration_seconds,
+        summary_text=summary.summary_text,
+        coach_note=summary.coach_note,
+        progress_delta=summary.progress_delta,
+        level_ups=summary.level_ups,
+        mastered_delta=summary.mastered_delta,
+        input_notes=summary.input_notes,
+        extra=summary.extra,
+        created_at=summary.created_at,
     )
 
 
@@ -256,6 +278,18 @@ def complete_session(
     skill.last_practice_at = now
     skill.updated_at = now
 
+    summary_text = generate_session_summary_text(
+        skill_title=skill.title,
+        goal=goal,
+        learner_level_label=level_label,
+        duration_seconds=body.duration_seconds,
+        session_notes=body.session_notes,
+        coach_note=coach["coach_note"],
+        progress_delta=delta,
+        level_ups=level_ups,
+        mastered_delta=mastered_delta,
+    )
+
     ev = SkillProgressEvent(
         skill_id=skill.id,
         user_sub=user_sub,
@@ -270,10 +304,55 @@ def complete_session(
         },
         metric_value=float(skill.stats_progress_percent),
     )
+    summary = SkillSessionSummary(
+        skill_id=skill.id,
+        user_sub=user_sub,
+        session_number=int(skill.stats_sessions or 0),
+        duration_seconds=body.duration_seconds,
+        summary_text=summary_text,
+        coach_note=coach["coach_note"],
+        progress_delta=delta,
+        level_ups=level_ups,
+        mastered_delta=mastered_delta,
+        input_notes=body.session_notes,
+        extra={"docs_export": {"status": "not_attempted"}},
+    )
     session.add(skill)
     session.add(ev)
+    session.add(summary)
     session.commit()
     session.refresh(skill)
+    session.refresh(summary)
+
+    docs_export_url: str | None = None
+    try:
+        export_result = export_session_summary_to_docs(
+            summary=summary,
+            skill=skill,
+            user_email=user.get("email") if isinstance(user.get("email"), str) else None,
+        )
+        if export_result:
+            docs_export_url = export_result["document_url"]
+            extra = dict(summary.extra or {})
+            extra["docs_export"] = {
+                "status": "exported",
+                "document_id": export_result["document_id"],
+                "document_url": export_result["document_url"],
+            }
+            summary.extra = extra
+            session.add(summary)
+            session.commit()
+            session.refresh(summary)
+    except Exception as exc:  # noqa: BLE001 — summary persistence remains authoritative
+        extra = dict(summary.extra or {})
+        extra["docs_export"] = {
+            "status": "error",
+            "error": str(exc),
+        }
+        summary.extra = extra
+        session.add(summary)
+        session.commit()
+        session.refresh(summary)
 
     return SessionCompleteResponse(
         skill=_skill_out(skill),
@@ -281,6 +360,8 @@ def complete_session(
         progress_delta=delta,
         level_ups=level_ups,
         mastered_delta=mastered_delta,
+        session_summary=_summary_out(summary),
+        docs_export_url=docs_export_url,
     )
 
 
@@ -350,6 +431,18 @@ def live_coach_context(
         research=research_out,
         progress_events=events,
     )
+
+
+@router.get("/{skill_id}/live-system-instruction", response_model=LiveSystemInstructionOut)
+def live_system_instruction(
+    skill_id: str,
+    user: dict = Depends(require_user),
+    session: Session = Depends(get_session),
+) -> LiveSystemInstructionOut:
+    """Transitional debug route for the backend-owned Live prompt."""
+    user_sub = str(user["id"])
+    skill = _get_skill_owned(session, skill_id, user_sub)
+    return build_live_system_instruction_response(session=session, skill=skill)
 
 
 @router.get("/{skill_id}", response_model=SkillOut)
@@ -569,3 +662,23 @@ def add_progress(
         metric_value=ev.metric_value,
         created_at=ev.created_at,
     )
+
+
+@router.get("/{skill_id}/session-summaries", response_model=dict)
+def list_session_summaries(
+    skill_id: str,
+    user: dict = Depends(require_user),
+    session: Session = Depends(get_session),
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+) -> dict:
+    user_sub = str(user["id"])
+    _get_skill_owned(session, skill_id, user_sub)
+    rows = session.exec(
+        select(SkillSessionSummary)
+        .where(SkillSessionSummary.skill_id == skill_id)
+        .order_by(SkillSessionSummary.created_at.desc())
+        .offset(offset)
+        .limit(limit)
+    ).all()
+    return {"items": [_summary_out(row) for row in rows]}

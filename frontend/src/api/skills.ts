@@ -42,12 +42,29 @@ export type SessionCompleteBody = {
   session_notes?: string | null
 }
 
+export type SkillSessionSummaryOut = {
+  id: string
+  skill_id: string
+  session_number: number
+  duration_seconds: number
+  summary_text: string
+  coach_note: string | null
+  progress_delta: number
+  level_ups: number
+  mastered_delta: number
+  input_notes: string | null
+  extra: Record<string, unknown> | null
+  created_at: string
+}
+
 export type SessionCompleteResponse = {
   skill: SkillOut
   coach_note: string
   progress_delta: number
   level_ups: number
   mastered_delta: number
+  session_summary: SkillSessionSummaryOut
+  docs_export_url: string | null
 }
 
 export type ProgressEventOut = {

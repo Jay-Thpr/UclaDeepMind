@@ -69,3 +69,23 @@ class SkillProgressEvent(SQLModel, table=True):
     detail: Optional[dict[str, Any]] = Field(default=None, sa_column=Column(JSON))
     metric_value: Optional[float] = Field(default=None)
     created_at: datetime = Field(default_factory=_utcnow)
+
+
+class SkillSessionSummary(SQLModel, table=True):
+    """Structured post-session summary persisted independently from progress events."""
+
+    __tablename__ = "skill_session_summary"
+
+    id: str = Field(default_factory=_uuid, primary_key=True)
+    skill_id: str = Field(foreign_key="skill.id", index=True, max_length=36)
+    user_sub: str = Field(index=True, max_length=128)
+    session_number: int = Field(default=1)
+    duration_seconds: int = Field(default=0)
+    summary_text: str = Field(default="", max_length=12000)
+    coach_note: Optional[str] = Field(default=None, max_length=2000)
+    progress_delta: float = Field(default=0.0)
+    level_ups: int = Field(default=0)
+    mastered_delta: int = Field(default=0)
+    input_notes: Optional[str] = Field(default=None, max_length=8000)
+    extra: Optional[dict[str, Any]] = Field(default=None, sa_column=Column(JSON))
+    created_at: datetime = Field(default_factory=_utcnow)

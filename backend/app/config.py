@@ -22,6 +22,10 @@ class Settings(BaseSettings):
     google_client_secret: str = ""
     # Must match an authorized redirect URI in the Google OAuth client (SPA callback).
     google_redirect_uri: str = "http://localhost:5173/auth/callback"
+    # Optional service-account JSON for best-effort Google Docs summary exports.
+    google_docs_service_account_json: str = ""
+    # Optional folder where exported summary docs should live.
+    google_docs_export_folder_id: str = ""
 
     # HS256 signing for session cookies (set a long random string in production).
     jwt_secret: str = "dev-only-change-jwt-secret"

@@ -3,11 +3,21 @@ const apiBase = import.meta.env.VITE_API_URL ?? ''
 export type LiveEphemeralTokenResponse = {
   accessToken: string
   liveModel: string
+  systemInstruction: string
+  liveContextVersion: string
+  sourceResearchId: string | null
+  sourceProgressEventIds: string[]
+  truncated: boolean
 }
 
-export async function fetchLiveEphemeralToken(): Promise<LiveEphemeralTokenResponse> {
+export async function fetchLiveEphemeralToken(
+  skillId?: string,
+): Promise<LiveEphemeralTokenResponse> {
   const res = await fetch(`${apiBase}/api/live/ephemeral-token`, {
     method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(skillId ? { skill_id: skillId } : {}),
   })
   const text = await res.text()
   if (!res.ok) {

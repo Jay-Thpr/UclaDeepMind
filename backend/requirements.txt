@@ -8,3 +8,5 @@ httpx>=0.28.0
 python-jose[cryptography]>=3.3.0
 rembg[cpu]>=2.0.0
 pillow>=10.0.0
+google-api-python-client>=2.177.0
+google-auth>=2.40.0

@@ -1,9 +1,7 @@
 import type { RefObject } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { requestFormCorrection } from '../api/annotations'
-import { fetchLiveCoachContext } from '../api/skills'
 import { fetchLiveEphemeralToken } from '../api/live'
-import { formatLiveCoachContextForSystemInstruction } from '../live/liveCoachContext'
 import { captureVideoFrameAsJpegBase64 } from '../live/captureVideoFrame'
 import {
   GeminiLiveClient,
@@ -34,15 +32,9 @@ function coachingTextFromToolArgs(
 const FORM_CORRECTION_COOLDOWN_MS = 30_000
 
 export type ConnectCoachOptions = {
-  /** When set, loads SQLite skill + research + progress to specialize the system instruction. */
+  /** When set, the backend specializes the Live system instruction to this skill. */
   skillId?: string
 }
-
-const COACH_SYSTEM = `You are a concise, encouraging real-time skills coach. The learner is on camera and microphone. Give short, specific spoken feedback.
-
-You have a tool request_form_correction for an annotated still (arrows/labels on the current camera frame). When you call it, you MUST fill coachingSuggestions with the exact corrections to draw—the image step will follow that text, not invent new advice. Summarize what you just said in clear, drawable terms (what to move and which direction). Optional focus narrows the body area. After the tool returns, briefly confirm what was marked up.
-
-Annotated stills are rate-limited: at most one successful image every 30 seconds. If the tool returns a rate-limit error, acknowledge briefly and continue coaching without requesting another still until later.`
 
 export function useGeminiLiveSession(
   videoRef: RefObject<HTMLVideoElement | null>,
@@ -216,28 +208,14 @@ export function useGeminiLiveSession(
       setCoachPhase('connecting')
       setCoachError(null)
 
-      let systemInstruction = COACH_SYSTEM
-      if (options?.skillId) {
-        try {
-          const coachCtx = await fetchLiveCoachContext(options.skillId)
-          systemInstruction = `${COACH_SYSTEM}\n\n---\n\n${formatLiveCoachContextForSystemInstruction(coachCtx)}`
-        } catch (e) {
-          const msg =
-            e instanceof Error
-              ? e.message
-              : 'Could not load skill context for the coach.'
-          setCoachError(msg)
-          setCoachPhase('error')
-          return
-        }
-      }
-
       let accessToken: string
       let liveModel: string
+      let systemInstruction: string
       try {
-        const tokenRes = await fetchLiveEphemeralToken()
+        const tokenRes = await fetchLiveEphemeralToken(options?.skillId)
         accessToken = tokenRes.accessToken
         liveModel = tokenRes.liveModel
+        systemInstruction = tokenRes.systemInstruction
       } catch (e) {
         const msg =
           e instanceof Error
