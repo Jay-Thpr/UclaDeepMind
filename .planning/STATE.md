@@ -2,14 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
+current_plan: 04 of 05
 status: in-progress
-last_updated: "2026-03-28T01:35:00.000Z"
+stopped_at: Completed 01-03-PLAN.md
+last_updated: "2026-03-28T01:47:59.888Z"
 progress:
   total_phases: 5
   completed_phases: 0
   total_plans: 5
-  completed_plans: 2
-  bar: "[███░░░░░░░] 40%"
+  completed_plans: 3
 ---
 
 # Project State
@@ -24,10 +25,10 @@ See: `.planning/PROJECT.md` (updated 2026-03-27)
 ## Current Status
 
 **Phase:** 01-foundation-research-pipeline
-**Current Plan:** 04 of 05
-**Last action:** Completed 01-03-PLAN.md — Gemini pipeline (findTutorialUrls, analyzeSkillVideos, synthesizeSkillDoc), lib/youtube.ts fallback, 9 passing tests
-**Stopped At:** Completed 01-03-PLAN.md
-**Next action:** Execute 01-04-PLAN.md
+**Current Plan:** 05 of 05 (COMPLETE)
+**Last action:** Completed 01-05-PLAN.md — POST /api/research route wiring full pipeline, GLITCH_USE_DEMO_DOC mode, 25 passing tests
+**Stopped At:** Completed 01-05-PLAN.md
+**Next action:** Execute Phase 02
 
 ## Decisions
 
@@ -38,6 +39,8 @@ See: `.planning/PROJECT.md` (updated 2026-03-27)
 - synthesizeSkillDoc takes (skill, rawAnalysis) not just rawAnalysis — matches Plan 05 API route signature
 - vi.mock GoogleGenAI requires regular function syntax (not arrow) to work as constructor with new
 - prompts/skill-research.ts committed in initial codebase (40fbc03); Task 1 complete without duplicate commit
+- vi.hoisted() required when vi.mock factory references const-declared mock functions (hoisting order issue)
+- GLITCH_USE_DEMO_DOC mode still calls createSkillDoc; gracefully falls back if Docs write fails
 
 ## Performance Metrics
 
@@ -45,6 +48,7 @@ See: `.planning/PROJECT.md` (updated 2026-03-27)
 |-------|------|----------|-------|-------|
 | 01 | 01 | 4 min | 2 | 19 |
 | 01 | 03 | 8 min | 2 | 4 |
+| 01 | 05 | 5 min | 1 | 2 |
 
 ## Session Notes
 
@@ -55,6 +59,7 @@ See: `.planning/PROJECT.md` (updated 2026-03-27)
 - Verbal fallback MUST be solid before annotated frames are considered done
 - npm run dev starts both Next.js (port 3000) and WebSocket server (port 3001) via concurrently
 - npm test -- --run exits 0 with 9 stubs passing
+- npm test -- --run exits 0 with 25 tests passing after Plan 05 (research route + real assertions)
 
 ---
-*State updated: 2026-03-28 after completing 01-03-PLAN.md*
+*State updated: 2026-03-28 after completing 01-05-PLAN.md*
