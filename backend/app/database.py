@@ -81,15 +81,42 @@ def _migrate_sqlite_skill_stats(engine: Engine) -> None:
             conn.commit()
 
 
+def _migrate_sqlite_google_oauth_credential(engine: Engine) -> None:
+    """Add provider column for existing Google OAuth credential rows."""
+    url = settings.database_url_resolved
+    if not url.startswith("sqlite"):
+        return
+    with engine.connect() as conn:
+        insp = inspect(conn)
+        if not insp.has_table("google_oauth_credential"):
+            return
+        cols = {c["name"] for c in insp.get_columns("google_oauth_credential")}
+        if "provider" not in cols:
+            conn.execute(
+                text(
+                    "ALTER TABLE google_oauth_credential "
+                    "ADD COLUMN provider VARCHAR(32) DEFAULT 'google'",
+                ),
+            )
+            conn.commit()
+
+
 def init_db() -> None:
     """Create database file (if SQLite) and all tables."""
-    from app.db_models import Skill, SkillProgressEvent, SkillResearch, SkillSessionSummary  # noqa: F401
+    from app.db_models import (  # noqa: F401
+        GoogleOAuthCredential,
+        Skill,
+        SkillProgressEvent,
+        SkillResearch,
+        SkillSessionSummary,
+    )
 
     settings.sqlite_path.parent.mkdir(parents=True, exist_ok=True)
     engine = get_engine()
     SQLModel.metadata.create_all(engine)
     _migrate_sqlite_skill_context(engine)
     _migrate_sqlite_skill_stats(engine)
+    _migrate_sqlite_google_oauth_credential(engine)
 
 
 def get_session() -> Generator[Session, None, None]:

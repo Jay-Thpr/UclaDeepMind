@@ -2,6 +2,7 @@ import type { RefObject } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { requestFormCorrection } from '../api/annotations'
 import { fetchLiveEphemeralToken } from '../api/live'
+import { uploadPhotoToGooglePhotos } from '../api/photos'
 import { captureVideoFrameAsJpegBase64 } from '../live/captureVideoFrame'
 import {
   GeminiLiveClient,
@@ -34,10 +35,12 @@ const FORM_CORRECTION_COOLDOWN_MS = 30_000
 export type ConnectCoachOptions = {
   /** When set, the backend specializes the Live system instruction to this skill. */
   skillId?: string
+  skillTitle?: string
 }
 
 export function useGeminiLiveSession(
   videoRef: RefObject<HTMLVideoElement | null>,
+  sessionSkill?: ConnectCoachOptions,
 ) {
   const clientRef = useRef<GeminiLiveClient | null>(null)
   const micRef = useRef<MicPcmStreamer | null>(null)
@@ -48,6 +51,8 @@ export function useGeminiLiveSession(
   const formCorrectionCooldownUntilRef = useRef(0)
   /** Blocks overlapping annotation HTTP calls (parallel onToolCall or manual + tool). */
   const formCorrectionInFlightRef = useRef(false)
+  const activeSkillIdRef = useRef<string | undefined>(undefined)
+  const activeSkillTitleRef = useRef<string | undefined>(undefined)
 
   const [coachPhase, setCoachPhase] = useState<'off' | 'connecting' | 'live' | 'error'>('off')
   const [coachError, setCoachError] = useState<string | null>(null)
@@ -94,6 +99,15 @@ export function useGeminiLiveSession(
     formCorrectionInFlightRef.current = true
     return null
   }, [peekFormCorrectionCooldownError])
+
+  useEffect(() => {
+    if (sessionSkill?.skillId) {
+      activeSkillIdRef.current = sessionSkill.skillId
+    }
+    if (sessionSkill?.skillTitle) {
+      activeSkillTitleRef.current = sessionSkill.skillTitle
+    }
+  }, [sessionSkill?.skillId, sessionSkill?.skillTitle])
 
   useEffect(() => {
     if (formCorrectionCooldownEndsAt === 0) {
@@ -156,6 +170,26 @@ export function useGeminiLiveSession(
     [videoRef],
   )
 
+  const uploadAnnotatedStillIfPossible = useCallback(
+    (params: { imageBase64: string; mimeType: string; label: string; description?: string }) => {
+      const skillId = activeSkillIdRef.current
+      if (!skillId) {
+        return
+      }
+      void uploadPhotoToGooglePhotos({
+        skillId,
+        imageBase64: params.imageBase64,
+        mimeType: params.mimeType,
+        label: params.label,
+        kind: 'annotation',
+        description: params.description,
+      }).catch((err) => {
+        console.warn('Google Photos upload skipped:', err)
+      })
+    },
+    [],
+  )
+
   const runManualFormCorrection = useCallback(
     async (focus?: string) => {
       const blocked = tryBeginFormCorrection()
@@ -173,6 +207,12 @@ export function useGeminiLiveSession(
         beginFormCorrectionCooldown()
         setCorrectionImageUrl(`data:${res.mimeType};base64,${res.imageBase64}`)
         setCorrectionNotes(res.notes)
+        uploadAnnotatedStillIfPossible({
+          imageBase64: res.imageBase64,
+          mimeType: res.mimeType,
+          label: `${activeSkillTitleRef.current || 'Skill'} manual form check`,
+          description: res.notes || undefined,
+        })
       } catch (e) {
         setCoachError(e instanceof Error ? e.message : String(e))
       } finally {
@@ -183,6 +223,7 @@ export function useGeminiLiveSession(
     [
       applyFormCorrection,
       beginFormCorrectionCooldown,
+      uploadAnnotatedStillIfPossible,
       tryBeginFormCorrection,
       releaseFormCorrectionInFlight,
     ],
@@ -207,6 +248,8 @@ export function useGeminiLiveSession(
       modelCaptionRef.current = ''
       setCoachPhase('connecting')
       setCoachError(null)
+      activeSkillIdRef.current = options?.skillId
+      activeSkillTitleRef.current = options?.skillTitle
 
       let accessToken: string
       let liveModel: string
@@ -382,6 +425,12 @@ export function useGeminiLiveSession(
                     `data:${res.mimeType};base64,${res.imageBase64}`,
                   )
                   setCorrectionNotes(res.notes)
+                  uploadAnnotatedStillIfPossible({
+                    imageBase64: res.imageBase64,
+                    mimeType: res.mimeType,
+                    label: `${activeSkillTitleRef.current || 'Skill'} AI correction still`,
+                    description: res.notes || hint,
+                  })
                   functionResponses.push({
                     name: fc.name,
                     id: fc.id,
@@ -446,6 +495,7 @@ export function useGeminiLiveSession(
       releaseFormCorrectionInFlight,
       stopMedia,
       tryBeginFormCorrection,
+      uploadAnnotatedStillIfPossible,
     ],
   )
 

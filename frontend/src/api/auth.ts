@@ -7,9 +7,28 @@ export type AuthUser = {
   picture: string | null
 }
 
+export type GoogleIntegrationStatus = {
+  connected: boolean
+  provider: string
+  hasRefreshToken: boolean
+  grantedScopes: string[]
+  photosAppendOnlyGranted: boolean
+  photosAppReadGranted: boolean
+}
+
 export type AuthMeResponse =
   | { authenticated: false }
-  | { authenticated: true; user: AuthUser }
+  | {
+      authenticated: true
+      user: AuthUser
+      googleIntegration: GoogleIntegrationStatus
+    }
+
+export type AuthStatusResponse = {
+  status: string
+  googleOAuthConfigured: boolean
+  googleIntegration: GoogleIntegrationStatus
+}
 
 export async function fetchAuthMe(): Promise<AuthMeResponse> {
   const res = await fetch(`${apiBase}/api/auth/me`, { credentials: 'include' })
@@ -17,6 +36,14 @@ export async function fetchAuthMe(): Promise<AuthMeResponse> {
     throw new Error(`Auth check failed: ${res.status}`)
   }
   return res.json() as Promise<AuthMeResponse>
+}
+
+export async function fetchAuthStatus(): Promise<AuthStatusResponse> {
+  const res = await fetch(`${apiBase}/api/auth/status`, { credentials: 'include' })
+  if (!res.ok) {
+    throw new Error(`Auth status failed: ${res.status}`)
+  }
+  return res.json() as Promise<AuthStatusResponse>
 }
 
 function errorMessageFromResponse(res: Response, bodyText: string): string {
@@ -50,6 +77,17 @@ export async function logoutSession(): Promise<void> {
   })
   if (!res.ok) {
     throw new Error(`Logout failed: ${res.status}`)
+  }
+}
+
+export async function disconnectGoogleIntegration(): Promise<void> {
+  const res = await fetch(`${apiBase}/api/auth/google/disconnect`, {
+    method: 'POST',
+    credentials: 'include',
+  })
+  const text = await res.text()
+  if (!res.ok) {
+    throw new Error(errorMessageFromResponse(res, text))
   }
 }
 

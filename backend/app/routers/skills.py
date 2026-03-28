@@ -8,6 +8,8 @@ from app.database import get_session
 from app.db_models import Skill, SkillProgressEvent, SkillResearch, SkillSessionSummary
 from app.deps import require_user
 from app.schemas.skills import (
+    LessonPlan,
+    LessonPlanOut,
     LiveCoachContextOut,
     LiveSystemInstructionOut,
     ProgressCreate,
@@ -23,6 +25,7 @@ from app.schemas.skills import (
     SkillUpdate,
     SkillWithResearchResponse,
 )
+from app.services.lesson_plan_gemini import generate_lesson_plan
 from app.services.live_context import build_live_system_instruction_response
 from app.services.session_summary_docs import export_session_summary_to_docs
 from app.services.session_progress_gemini import estimate_session_progress_delta
@@ -163,6 +166,20 @@ def create_skill_with_research(
             status_code=502,
             detail=f"Research generation failed: {exc}",
         ) from exc
+
+    # Generate lesson plan (checkpoint structure) alongside the dossier
+    try:
+        lesson_plan_data = generate_lesson_plan(
+            title=body.title,
+            goal=body.goal,
+            level=body.level,
+            category=body.category,
+            dossier=dossier,
+        )
+        meta["lesson_plan"] = lesson_plan_data
+    except Exception as exc:  # noqa: BLE001 — lesson plan is non-blocking
+        meta["lesson_plan"] = None
+        meta["lesson_plan_error"] = str(exc)
 
     now = _utcnow()
     cat_raw = body.category.strip() if body.category else None
@@ -495,6 +512,91 @@ def delete_skill(
     session.delete(s)
     session.commit()
     return {"ok": True}
+
+
+# --- Lesson Plan ---
+
+
+@router.get("/{skill_id}/lesson-plan", response_model=LessonPlanOut)
+def get_lesson_plan(
+    skill_id: str,
+    user: dict = Depends(require_user),
+    session: Session = Depends(get_session),
+) -> LessonPlanOut:
+    """Return the stored lesson plan from the latest research dossier's extra data."""
+    user_sub = str(user["id"])
+    _get_skill_owned(session, skill_id, user_sub)
+    stmt = (
+        select(SkillResearch)
+        .where(SkillResearch.skill_id == skill_id)
+        .order_by(SkillResearch.created_at.desc())
+        .limit(1)
+    )
+    r = session.exec(stmt).first()
+    if r is None:
+        raise HTTPException(status_code=404, detail="No research found for this skill.")
+    extra = r.extra or {}
+    lp_data = extra.get("lesson_plan")
+    if not lp_data:
+        raise HTTPException(
+            status_code=404,
+            detail="No lesson plan stored yet. Regenerate to create one.",
+        )
+    try:
+        lp = LessonPlan.model_validate(lp_data)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=422, detail=f"Stored lesson plan is malformed: {exc}"
+        ) from exc
+    return LessonPlanOut(skill_id=skill_id, lesson_plan=lp, source_research_id=r.id)
+
+
+@router.post("/{skill_id}/lesson-plan/regenerate", response_model=LessonPlanOut)
+def regenerate_lesson_plan(
+    skill_id: str,
+    user: dict = Depends(require_user),
+    session: Session = Depends(get_session),
+) -> LessonPlanOut:
+    """Re-run lesson plan generation and persist back into the latest research extra."""
+    user_sub = str(user["id"])
+    skill = _get_skill_owned(session, skill_id, user_sub)
+    stmt = (
+        select(SkillResearch)
+        .where(SkillResearch.skill_id == skill_id)
+        .order_by(SkillResearch.created_at.desc())
+        .limit(1)
+    )
+    r = session.exec(stmt).first()
+    if r is None:
+        raise HTTPException(status_code=404, detail="No research found for this skill.")
+
+    ctx = skill.context if isinstance(skill.context, dict) else {}
+    try:
+        lp_data = generate_lesson_plan(
+            title=skill.title,
+            goal=str(ctx.get("goal", skill.notes or skill.title)),
+            level=str(ctx.get("level", "Beginner")),
+            category=ctx.get("category"),
+            dossier=r.content or "",
+        )
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Lesson plan generation failed: {exc}") from exc
+
+    extra = dict(r.extra or {})
+    extra["lesson_plan"] = lp_data
+    r.extra = extra
+    session.add(r)
+    session.commit()
+    session.refresh(r)
+
+    try:
+        lp = LessonPlan.model_validate(lp_data)
+    except Exception as exc:
+        raise HTTPException(status_code=422, detail=f"Generated lesson plan is malformed: {exc}") from exc
+
+    return LessonPlanOut(skill_id=skill_id, lesson_plan=lp, source_research_id=r.id)
 
 
 # --- Research ---

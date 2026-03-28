@@ -11,7 +11,7 @@ const nav = [
 ]
 
 export function Layout() {
-  const { user, loading, logout } = useAuth()
+  const { user, googleIntegration, loading, logout, disconnectGoogle } = useAuth()
 
   return (
     <div className="layout">
@@ -51,6 +51,16 @@ export function Layout() {
                 <span className="layout__user-name" title={user.email ?? undefined}>
                   {user.display_name}
                 </span>
+                {googleIntegration?.connected ? (
+                  <button
+                    type="button"
+                    className="btn btn--ghost layout__auth-btn"
+                    onClick={() => void disconnectGoogle()}
+                    title="Remove stored Google API access for Photos and other integrations"
+                  >
+                    Disconnect Google
+                  </button>
+                ) : null}
                 <button
                   type="button"
                   className="btn btn--ghost layout__auth-btn"

@@ -89,3 +89,19 @@ class SkillSessionSummary(SQLModel, table=True):
     input_notes: Optional[str] = Field(default=None, max_length=8000)
     extra: Optional[dict[str, Any]] = Field(default=None, sa_column=Column(JSON))
     created_at: datetime = Field(default_factory=_utcnow)
+
+
+class GoogleOAuthCredential(SQLModel, table=True):
+    """Stored Google OAuth tokens for user-authorized Google API calls."""
+
+    __tablename__ = "google_oauth_credential"
+
+    user_sub: str = Field(primary_key=True, max_length=128)
+    provider: str = Field(default="google", max_length=32)
+    access_token: str = Field(default="", max_length=4096)
+    refresh_token: Optional[str] = Field(default=None, max_length=4096)
+    token_type: Optional[str] = Field(default=None, max_length=64)
+    scope: Optional[str] = Field(default=None, max_length=4000)
+    expires_at: Optional[datetime] = Field(default=None)
+    created_at: datetime = Field(default_factory=_utcnow)
+    updated_at: datetime = Field(default_factory=_utcnow)

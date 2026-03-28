@@ -78,7 +78,7 @@ export function SessionPage() {
     annotationBusy,
     runManualFormCorrection,
     clearCorrection,
-  } = useGeminiLiveSession(videoRef)
+  } = useGeminiLiveSession(videoRef, { skillId, skillTitle })
 
   const coachBusy = coachPhase === 'connecting' || coachPhase === 'live'
 
@@ -394,6 +394,7 @@ export function SessionPage() {
                         const el = videoRef.current
                         void connectCoach(mediaStream, el, {
                           skillId,
+                          skillTitle,
                         })
                       }}
                     >

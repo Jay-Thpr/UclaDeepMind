@@ -1,21 +1,38 @@
 import secrets
+from datetime import datetime, timezone
 from urllib.parse import urlencode
 
 import httpx
 from fastapi import APIRouter, Cookie, Depends, HTTPException
 from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import BaseModel, Field
+from sqlmodel import Session
 
 from app.config import settings
+from app.database import get_session
+from app.db_models import GoogleOAuthCredential
 from app.deps import SESSION_COOKIE, get_optional_user
 from app.security import create_session_token
-from app.services.google_oauth import exchange_authorization_code, fetch_google_userinfo
+from app.services.google_oauth import (
+    credential_capabilities,
+    exchange_authorization_code,
+    fetch_google_userinfo,
+    token_expires_at,
+)
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 OAUTH_STATE_COOKIE = "oauth_state"
 GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
-SCOPES = "openid email profile"
+SCOPES = " ".join(
+    [
+        "openid",
+        "email",
+        "profile",
+        "https://www.googleapis.com/auth/photoslibrary.appendonly",
+        "https://www.googleapis.com/auth/photoslibrary.readonly.appcreateddata",
+    ],
+)
 
 
 class CodeExchangeBody(BaseModel):
@@ -32,18 +49,33 @@ def _google_not_configured() -> bool:
 
 
 @router.get("/status")
-def auth_status() -> dict[str, str | bool]:
+def auth_status(
+    user: dict | None = Depends(get_optional_user),
+    session: Session = Depends(get_session),
+) -> dict[str, object]:
+    google_credential = None
+    if user is not None:
+        google_credential = session.get(GoogleOAuthCredential, str(user["id"]))
     return {
         "status": "ready" if not _google_not_configured() else "unconfigured",
         "googleOAuthConfigured": not _google_not_configured(),
+        "googleIntegration": credential_capabilities(google_credential),
     }
 
 
 @router.get("/me")
-def auth_me(user: dict | None = Depends(get_optional_user)) -> dict:
+def auth_me(
+    user: dict | None = Depends(get_optional_user),
+    session: Session = Depends(get_session),
+) -> dict[str, object]:
     if user is None:
         return {"authenticated": False}
-    return {"authenticated": True, "user": user}
+    google_credential = session.get(GoogleOAuthCredential, str(user["id"]))
+    return {
+        "authenticated": True,
+        "user": user,
+        "googleIntegration": credential_capabilities(google_credential),
+    }
 
 
 @router.get("/google")
@@ -61,8 +93,9 @@ def google_login() -> RedirectResponse:
         "response_type": "code",
         "scope": SCOPES,
         "state": state,
-        "access_type": "online",
-        "prompt": "select_account",
+        "access_type": "offline",
+        "prompt": "consent select_account",
+        "include_granted_scopes": "true",
     }
     url = f"{GOOGLE_AUTH_URL}?{urlencode(params)}"
     response = RedirectResponse(url=url, status_code=302)
@@ -82,6 +115,7 @@ def google_login() -> RedirectResponse:
 async def google_exchange(
     body: CodeExchangeBody,
     oauth_state: str | None = Cookie(default=None, alias=OAUTH_STATE_COOKIE),
+    session: Session = Depends(get_session),
 ) -> JSONResponse:
     """Exchange the authorization code for a session cookie (call from /auth/callback)."""
     if _google_not_configured():
@@ -135,6 +169,35 @@ async def google_exchange(
     name = profile.get("name") if isinstance(profile.get("name"), str) else None
     picture = profile.get("picture") if isinstance(profile.get("picture"), str) else None
 
+    refresh_token = (
+        token_payload.get("refresh_token")
+        if isinstance(token_payload.get("refresh_token"), str)
+        else None
+    )
+    existing_cred = session.get(GoogleOAuthCredential, google_id)
+    credential = existing_cred or GoogleOAuthCredential(
+        user_sub=google_id,
+        created_at=datetime.now(timezone.utc),
+    )
+    credential.provider = "google"
+    credential.access_token = access_token
+    if refresh_token:
+        credential.refresh_token = refresh_token
+    credential.token_type = (
+        token_payload.get("token_type")
+        if isinstance(token_payload.get("token_type"), str)
+        else credential.token_type
+    )
+    credential.scope = (
+        token_payload.get("scope")
+        if isinstance(token_payload.get("scope"), str)
+        else credential.scope
+    )
+    credential.expires_at = token_expires_at(token_payload)
+    credential.updated_at = datetime.now(timezone.utc)
+    session.add(credential)
+    session.commit()
+
     jwt_token = create_session_token(
         subject=google_id,
         email=email,
@@ -161,4 +224,20 @@ async def google_exchange(
 def logout() -> JSONResponse:
     out = JSONResponse({"ok": True})
     out.delete_cookie(SESSION_COOKIE, path="/")
+    out.delete_cookie(OAUTH_STATE_COOKIE, path="/")
+    return out
+
+
+@router.post("/google/disconnect")
+def disconnect_google_integration(
+    user: dict = Depends(get_optional_user),
+    session: Session = Depends(get_session),
+) -> JSONResponse:
+    if user is None:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    credential = session.get(GoogleOAuthCredential, str(user["id"]))
+    if credential is not None:
+        session.delete(credential)
+        session.commit()
+    out = JSONResponse({"ok": True})
     return out

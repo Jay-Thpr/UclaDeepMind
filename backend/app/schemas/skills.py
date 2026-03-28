@@ -8,6 +8,37 @@ from typing import Any, Optional
 from pydantic import BaseModel, Field
 
 
+# ---------------------------------------------------------------------------
+# Lesson plan (checkpoint-based coaching structure)
+# ---------------------------------------------------------------------------
+
+
+class Checkpoint(BaseModel):
+    id: int
+    goal: str
+    confirm_strategy: str
+
+
+class LessonPlan(BaseModel):
+    coaching_mode: str  # "hands-on" | "observational" | "repetition" | "conceptual"
+    sensory_cues: list[str] = Field(default_factory=list)
+    safety_flags: list[str] = Field(default_factory=list)
+    checkpoints: list[Checkpoint]
+    common_mistakes: list[str] = Field(default_factory=list)
+    tone: str = "encouraging, patient"
+
+
+class LessonPlanOut(BaseModel):
+    skill_id: str
+    lesson_plan: LessonPlan
+    source_research_id: Optional[str] = None
+
+
+# ---------------------------------------------------------------------------
+# Skills
+# ---------------------------------------------------------------------------
+
+
 class SkillCreate(BaseModel):
     title: str = Field(min_length=1, max_length=500)
     notes: Optional[str] = Field(default=None, max_length=20000)

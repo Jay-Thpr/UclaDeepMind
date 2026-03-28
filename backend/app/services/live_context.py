@@ -77,6 +77,14 @@ def build_live_system_instruction_for_skill(
         if research_digest:
             sections.append(research_digest)
 
+    # Checkpoint block — built from lesson_plan stored in research.extra
+    if research_row:
+        lesson_plan_data = (research_row.extra or {}).get("lesson_plan")
+        if isinstance(lesson_plan_data, dict):
+            checkpoint_block = _build_checkpoint_block(lesson_plan_data)
+            if checkpoint_block:
+                sections.append(checkpoint_block)
+
     summary_block, summary_truncated = _build_summary_block(summaries)
     truncated = truncated or summary_truncated
     if summary_block:
@@ -183,6 +191,43 @@ def _build_research_digest(content: str) -> tuple[str, bool]:
         digest = digest[:MAX_RESEARCH_CHARS] + "\n\n[Research digest truncated.]"
 
     return (f"## Research digest\n{digest}".strip() if digest else "", truncated)
+
+
+def _build_checkpoint_block(lesson_plan: dict) -> str:
+    """Compile a lesson plan dict into a Live system-prompt checkpoint section."""
+    checkpoints = lesson_plan.get("checkpoints", [])
+    if not checkpoints:
+        return ""
+
+    mode = lesson_plan.get("coaching_mode", "hands-on")
+    tone = lesson_plan.get("tone", "encouraging, patient")
+    mistakes = lesson_plan.get("common_mistakes", [])
+    safety = lesson_plan.get("safety_flags", [])
+
+    lines = [
+        "## Session checkpoints",
+        f"Coaching mode: {mode}. Tone: {tone}.",
+        "",
+        "You are a conversational coach — speak naturally and adapt to the learner. "
+        "However, you MUST reach each checkpoint below in order before moving on. "
+        "Backtracking is allowed. The learner may skip ahead only if they can demonstrate readiness.",
+        "",
+    ]
+    for cp in checkpoints:
+        cp_id = cp.get("id", "?")
+        goal = cp.get("goal", "").strip()
+        strategy = cp.get("confirm_strategy", "").strip()
+        lines.append(f"CHECKPOINT {cp_id}: {goal}")
+        if strategy:
+            lines.append(f"  → Confirm by: {strategy}")
+
+    if mistakes:
+        lines.append("")
+        lines.append("Common mistakes to watch for: " + "; ".join(mistakes) + ".")
+    if safety:
+        lines.append("Safety notes: " + "; ".join(safety) + ".")
+
+    return "\n".join(lines)
 
 
 def _build_summary_block(summaries: list[SkillSessionSummary]) -> tuple[str, bool]:

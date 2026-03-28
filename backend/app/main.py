@@ -5,7 +5,18 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.database import init_db
-from app.routers import annotations, auth, characters, health, live, research, sessions, skills, users
+from app.routers import (
+    annotations,
+    auth,
+    characters,
+    health,
+    live,
+    photos,
+    research,
+    sessions,
+    skills,
+    users,
+)
 
 
 @asynccontextmanager
@@ -40,3 +51,4 @@ app.include_router(skills.router)
 app.include_router(sessions.router)
 app.include_router(research.router)
 app.include_router(live.router)
+app.include_router(photos.router)
