@@ -169,15 +169,22 @@ function skillForCategory(skills: SkillOut[], category: string) {
   )[0]
 }
 
+const PRESET_RING_TYPES = [
+  SKILL_TYPES.COOKING,
+  SKILL_TYPES.BASKETBALL,
+  SKILL_TYPES.MUSIC,
+  SKILL_TYPES.ART,
+  SKILL_TYPES.CODING,
+  SKILL_TYPES.PHOTOGRAPHY,
+] as const
+
 /**
- * When `context.category` is missing (older rows), infer preset from the skill title so
- * cooking still resolves after a fresh fetch.
+ * When category match fails, infer preset from title/notes. Considers skills with no category,
+ * or a non-preset category; skips skills already labeled for a *different* preset ring.
  */
 function skillForPresetFallback(skills: SkillOut[], category: string): SkillOut | undefined {
   const want = normalizePresetCategory(category)
   if (!want) return undefined
-  const uncategorized = skills.filter((s) => !normalizePresetCategory(s.context?.category))
-  if (uncategorized.length === 0) return undefined
 
   const titleHints: Record<string, string[]> = {
     cooking: ['cook', 'chef', 'knife', 'bake', 'recipe', 'kitchen', 'culinary', 'food prep'],
@@ -188,26 +195,40 @@ function skillForPresetFallback(skills: SkillOut[], category: string): SkillOut 
     photography: ['photo', 'camera', 'lens', 'shoot'],
   }
   const hints = titleHints[want]
-  if (!hints) return undefined
+  if (!hints?.length) return undefined
 
-  const scored = uncategorized.map((s) => {
+  const presetCatSet = new Set(PRESET_RING_TYPES.map((t) => t.toLowerCase()))
+
+  const pool = skills.filter((s) => {
+    const cat = normalizePresetCategory(s.context?.category)
+    if (!cat) return true
+    if (cat === want) return true
+    if (presetCatSet.has(cat) && cat !== want) return false
+    return true
+  })
+  if (pool.length === 0) return undefined
+
+  const scored = pool.map((s) => {
     const t = `${s.title} ${s.notes ?? ''}`.toLowerCase()
     const score = hints.reduce((acc, h) => acc + (t.includes(h) ? 1 : 0), 0)
     return { s, score }
   })
-  const best = scored.sort((a, b) => b.score - a.score)[0]
+  const best = scored.sort((a, b) => b.score - a.score || new Date(b.s.updated_at).getTime() - new Date(a.s.updated_at).getTime())[0]
   if (best.score < 1) return undefined
   return best.s
+}
+
+/** Category match first, then title/notes hints (same logic everywhere). */
+function resolveSkillForPreset(skills: SkillOut[], slotType: string): SkillOut | undefined {
+  return skillForCategory(skills, slotType) ?? skillForPresetFallback(skills, slotType)
 }
 
 /** True if this skill is the one shown on any preset ring (category or title-hint match). */
 function skillClaimedByPresetRing(skills: SkillOut[], skill: SkillOut): boolean {
   for (const slot of ALL_SKILL_SLOTS) {
     if (slot.type === SKILL_TYPES.MORE) continue
-    const byCat = skillForCategory(skills, slot.type)
-    if (byCat?.id === skill.id) return true
-    const byFallback = skillForPresetFallback(skills, slot.type)
-    if (byFallback?.id === skill.id) return true
+    const resolved = resolveSkillForPreset(skills, slot.type)
+    if (resolved?.id === skill.id) return true
   }
   return false
 }
@@ -216,8 +237,7 @@ async function resolvePresetSkill(
   slotType: string,
   currentSkills: SkillOut[],
 ): Promise<{ id: string; title: string } | null> {
-  const tryList = (list: SkillOut[]) =>
-    skillForCategory(list, slotType) ?? skillForPresetFallback(list, slotType)
+  const tryList = (list: SkillOut[]) => resolveSkillForPreset(list, slotType)
 
   let skill = tryList(currentSkills)
   if (!skill) {
@@ -401,7 +421,7 @@ export function SkillSelectPage() {
   const presetSlotsWithLabels: SkillSlot[] = useMemo(() => {
     return ALL_SKILL_SLOTS.map((slot) => {
       if (slot.type === SKILL_TYPES.MORE) return slot
-      const assigned = skillForCategory(apiSkills, slot.type)
+      const assigned = resolveSkillForPreset(apiSkills, slot.type)
       const label =
         assigned?.title?.trim() ? assigned.title.trim() : 'Unassigned'
       return {
