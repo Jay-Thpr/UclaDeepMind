@@ -9,11 +9,11 @@
 
 ### Research Pipeline
 
-- [ ] **RES-01**: User can enter any skill name and trigger the research phase
-- [ ] **RES-02**: System searches YouTube for technique tutorials using Gemini + Google Search grounding
-- [ ] **RES-03**: System analyzes tutorial video content to extract proper form, common mistakes, and progression order
-- [ ] **RES-04**: System generates a structured skill document (form descriptions, ranked mistakes, progression steps, video timestamps)
-- [ ] **RES-05**: Skill document saved to Google Docs
+- [x] **RES-01**: User can enter any skill name and trigger the research phase
+- [x] **RES-02**: System searches YouTube for technique tutorials using Gemini + Google Search grounding
+- [x] **RES-03**: System analyzes tutorial video content to extract proper form, common mistakes, and progression order
+- [x] **RES-04**: System generates a structured skill document (form descriptions, ranked mistakes, progression steps, video timestamps)
+- [x] **RES-05**: Skill document saved to Google Docs
 
 ### Live Coaching Session
 
@@ -45,7 +45,7 @@
 
 ### Frontend / UX
 
-- [ ] **UI-01**: Skill selection / research phase screen
+- [x] **UI-01**: Skill selection / research phase screen
 - [ ] **UI-02**: Live session screen — camera feed, coaching transcript, annotated frame display
 - [ ] **UI-03**: Post-session summary screen
 - [ ] **UI-04**: Returning user history / progression view

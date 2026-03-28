@@ -30,10 +30,10 @@
 
 **Team:** Person A (research pipeline) + Person C (frontend scaffold + skill selection UI)
 
-**Plans:** 5 plans
+**Plans:** 1/5 plans executed
 
 Plans:
-- [ ] 01-01-PLAN.md — Project scaffold, server skeleton, Vitest test infrastructure
+- [x] 01-01-PLAN.md — Project scaffold, server skeleton, Vitest test infrastructure
 - [ ] 01-02-PLAN.md — Google service account auth + Docs write helper
 - [ ] 01-03-PLAN.md — Gemini three-step research pipeline + YouTube fallback
 - [ ] 01-04-PLAN.md — Skill selection UI (UI-01) + cooking demo fallback JSON
