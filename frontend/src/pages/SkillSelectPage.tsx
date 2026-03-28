@@ -180,6 +180,58 @@ function skillForCategory(skills: SkillOut[], category: string) {
   )[0]
 }
 
+/**
+ * When `context.category` is missing (older rows), infer preset from the skill title so
+ * cooking still resolves after a fresh fetch.
+ */
+function skillForPresetFallback(skills: SkillOut[], category: string): SkillOut | undefined {
+  const want = normalizePresetCategory(category)
+  if (!want) return undefined
+  const uncategorized = skills.filter((s) => !normalizePresetCategory(s.context?.category))
+  if (uncategorized.length === 0) return undefined
+
+  const titleHints: Record<string, string[]> = {
+    cooking: ['cook', 'chef', 'knife', 'bake', 'recipe', 'kitchen', 'culinary', 'food prep'],
+    basketball: ['basketball', 'hoop', 'dribble', 'nba'],
+    music: ['music', 'piano', 'guitar', 'violin', 'sing', 'song'],
+    art: ['art', 'draw', 'paint', 'sketch', 'canvas'],
+    coding: ['code', 'python', 'javascript', 'program', 'dev', 'software'],
+    photography: ['photo', 'camera', 'lens', 'shoot'],
+  }
+  const hints = titleHints[want]
+  if (!hints) return undefined
+
+  const scored = uncategorized.map((s) => {
+    const t = `${s.title} ${s.notes ?? ''}`.toLowerCase()
+    const score = hints.reduce((acc, h) => acc + (t.includes(h) ? 1 : 0), 0)
+    return { s, score }
+  })
+  const best = scored.sort((a, b) => b.score - a.score)[0]
+  if (best.score < 1) return undefined
+  return best.s
+}
+
+async function resolvePresetSkill(
+  slotType: string,
+  currentSkills: SkillOut[],
+): Promise<{ id: string; title: string } | null> {
+  const tryList = (list: SkillOut[]) =>
+    skillForCategory(list, slotType) ?? skillForPresetFallback(list, slotType)
+
+  let skill = tryList(currentSkills)
+  if (!skill) {
+    try {
+      const fresh = await fetchSkills()
+      skill = tryList(fresh)
+    } catch {
+      return null
+    }
+  }
+  if (!skill) return null
+  const title = skill.title?.trim() || 'Your skill'
+  return { id: skill.id, title }
+}
+
 function DraggableCharacter({
   onDrag,
   isOverSlot,
@@ -398,20 +450,36 @@ export function SkillSelectPage() {
       return
     }
     if (slot?.source === 'preset' && slot.id !== 'more') {
-      const linkedId = slot.assignedSkillId
-      if (linkedId) {
-        navigate('/dashboard', {
-          state: {
-            skillId: linkedId,
-            skillTitle:
-              slot.label !== 'Unassigned' ? slot.label : 'Your skill',
-          },
+      void (async () => {
+        if (slot.assignedSkillId) {
+          navigate('/dashboard', {
+            state: {
+              skillId: slot.assignedSkillId,
+              skillTitle:
+                slot.label !== 'Unassigned' ? slot.label : 'Your skill',
+            },
+          })
+          return
+        }
+        if (user) {
+          const resolved = await resolvePresetSkill(slot.type, apiSkills)
+          if (resolved) {
+            void fetchSkills()
+              .then(setApiSkills)
+              .catch(() => {})
+            navigate('/dashboard', {
+              state: {
+                skillId: resolved.id,
+                skillTitle: resolved.title,
+              },
+            })
+            return
+          }
+        }
+        navigate('/onboarding', {
+          state: { createSkill: true, category: slot.type },
         })
-        return
-      }
-      navigate('/onboarding', {
-        state: { createSkill: true, category: slot.type },
-      })
+      })()
       return
     }
     setSelectedSkill(skillId)
@@ -428,20 +496,36 @@ export function SkillSelectPage() {
       return
     }
     if (slot?.source === 'preset' && slot.id !== 'more') {
-      const linkedId = slot.assignedSkillId
-      if (linkedId) {
-        navigate('/dashboard', {
-          state: {
-            skillId: linkedId,
-            skillTitle:
-              slot.label !== 'Unassigned' ? slot.label : 'Your skill',
-          },
+      void (async () => {
+        if (slot.assignedSkillId) {
+          navigate('/dashboard', {
+            state: {
+              skillId: slot.assignedSkillId,
+              skillTitle:
+                slot.label !== 'Unassigned' ? slot.label : 'Your skill',
+            },
+          })
+          return
+        }
+        if (user) {
+          const resolved = await resolvePresetSkill(slot.type, apiSkills)
+          if (resolved) {
+            void fetchSkills()
+              .then(setApiSkills)
+              .catch(() => {})
+            navigate('/dashboard', {
+              state: {
+                skillId: resolved.id,
+                skillTitle: resolved.title,
+              },
+            })
+            return
+          }
+        }
+        navigate('/onboarding', {
+          state: { createSkill: true, category: slot.type },
         })
-        return
-      }
-      navigate('/onboarding', {
-        state: { createSkill: true, category: slot.type },
-      })
+      })()
       return
     }
     navigate('/dashboard')

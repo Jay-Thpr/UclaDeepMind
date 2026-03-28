@@ -1,4 +1,4 @@
-import { startTransition, useEffect, useState } from 'react'
+import { startTransition, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { completeSession } from '../api/skills'
 import { useGeminiLiveSession } from '../hooks/useGeminiLiveSession'
@@ -19,15 +19,52 @@ const TIPS = [
 
 type SessionLocation = { skillId?: string; skillTitle?: string }
 
+const ACTIVE_SKILL_STORAGE_KEY = 'skillQuest.activeSkillId'
+const ACTIVE_SKILL_TITLE_KEY = 'skillQuest.activeSkillTitle'
+
 export function SessionPage() {
   const navigate = useNavigate()
   const location = useLocation()
   const sessionNav = (location.state ?? null) as SessionLocation | null
-  const skillTitle = sessionNav?.skillTitle ?? 'Your skill'
+
+  const storedIds = useMemo(() => {
+    try {
+      return {
+        skillId: sessionStorage.getItem(ACTIVE_SKILL_STORAGE_KEY) ?? undefined,
+        skillTitle: sessionStorage.getItem(ACTIVE_SKILL_TITLE_KEY) ?? undefined,
+      }
+    } catch {
+      return { skillId: undefined, skillTitle: undefined }
+    }
+  }, [])
+
+  const skillId =
+    sessionNav?.skillId ?? storedIds.skillId
+  const skillTitle =
+    sessionNav?.skillTitle ?? storedIds.skillTitle ?? 'Your skill'
+
+  useEffect(() => {
+    if (sessionNav?.skillId) {
+      try {
+        sessionStorage.setItem(ACTIVE_SKILL_STORAGE_KEY, sessionNav.skillId)
+      } catch {
+        /* ignore */
+      }
+    }
+    if (sessionNav?.skillTitle) {
+      try {
+        sessionStorage.setItem(ACTIVE_SKILL_TITLE_KEY, sessionNav.skillTitle)
+      } catch {
+        /* ignore */
+      }
+    }
+  }, [sessionNav?.skillId, sessionNav?.skillTitle])
   const { videoRef, mediaStream, status, errorMessage, start, stop, isLive } =
     useCameraStream({ audio: true })
   const [videoFrameReady, setVideoFrameReady] = useState(false)
   const [elapsed, setElapsed] = useState(0)
+  /** Same as `elapsed` but survives `stop()` / `isLive` resetting state before `completeSession` runs. */
+  const elapsedRef = useRef(0)
 
   const {
     coachPhase,
@@ -56,31 +93,38 @@ export function SessionPage() {
       startTransition(() => {
         setVideoFrameReady(false)
         setElapsed(0)
+        elapsedRef.current = 0
       })
     }
   }, [isLive])
 
   useEffect(() => {
     if (!isLive) return
-    const id = window.setInterval(() => setElapsed((n) => n + 1), 1000)
+    const id = window.setInterval(() => {
+      setElapsed((n) => {
+        const next = n + 1
+        elapsedRef.current = next
+        return next
+      })
+    }, 1000)
     return () => window.clearInterval(id)
   }, [isLive])
 
   const handleEndSession = () => {
     void (async () => {
+      const durationSec = Math.max(0, elapsedRef.current)
       await disconnectCoach()
       stop()
-      const skillId = sessionNav?.skillId
       const notes = [userCaption, modelCaption].filter(Boolean).join('\n\n').trim() || null
-      if (skillId && elapsed > 0) {
+      if (skillId && durationSec > 0) {
         try {
           const result = await completeSession(skillId, {
-            duration_seconds: elapsed,
+            duration_seconds: durationSec,
             session_notes: notes,
           })
           navigate('/level-up', {
             state: {
-              durationSec: elapsed,
+              durationSec,
               skillLabel: skillTitle,
               skillId,
               coach_note: result.coach_note,
@@ -95,7 +139,7 @@ export function SessionPage() {
           console.error(e)
           navigate('/level-up', {
             state: {
-              durationSec: elapsed,
+              durationSec,
               skillLabel: skillTitle,
               skillId,
               sessionError: e instanceof Error ? e.message : 'Could not save session.',
@@ -106,11 +150,11 @@ export function SessionPage() {
       }
       navigate('/level-up', {
         state: {
-          durationSec: elapsed,
+          durationSec,
           skillLabel: skillTitle,
           skillId,
           sessionError:
-            skillId && elapsed === 0
+            skillId && durationSec === 0
               ? 'Session was too short to record.'
               : !skillId
                 ? 'No skill selected — open the dashboard from a skill first.'
@@ -349,7 +393,7 @@ export function SessionPage() {
                       onClick={() => {
                         const el = videoRef.current
                         void connectCoach(mediaStream, el, {
-                          skillId: sessionNav?.skillId,
+                          skillId,
                         })
                       }}
                     >
