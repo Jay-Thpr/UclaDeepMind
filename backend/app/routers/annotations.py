@@ -7,7 +7,8 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.form_correction_rate_limit import (
     FORM_CORRECTION_MIN_INTERVAL_SEC,
     form_correction_record_success,
-    form_correction_seconds_until_allowed,
+    form_correction_release_in_flight,
+    form_correction_try_acquire,
 )
 from app.services.form_annotation import annotate_form_photo, decode_base64_image
 
@@ -31,8 +32,13 @@ def form_correction(request: Request, body: FormCorrectionBody) -> dict[str, str
     """
     client = request.client
     rate_key = f"ip:{client.host}" if client else "ip:unknown"
-    wait = form_correction_seconds_until_allowed(rate_key)
-    if wait > 0:
+    ok, wait, reason = form_correction_try_acquire(rate_key)
+    if not ok:
+        if reason == "in_flight":
+            raise HTTPException(
+                status_code=409,
+                detail="Another annotation request is already in progress.",
+            )
         retry_after = max(1, int(math.ceil(wait)))
         raise HTTPException(
             status_code=429,
@@ -46,14 +52,17 @@ def form_correction(request: Request, body: FormCorrectionBody) -> dict[str, str
 
     raw = body.image_base64.strip()
     if len(raw) > 14_000_000:
+        form_correction_release_in_flight(rate_key)
         raise HTTPException(status_code=413, detail="Image payload too large")
 
     try:
         image_bytes = decode_base64_image(raw)
     except ValueError as exc:
+        form_correction_release_in_flight(rate_key)
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     if len(image_bytes) > 10_000_000:
+        form_correction_release_in_flight(rate_key)
         raise HTTPException(status_code=413, detail="Decoded image too large")
 
     try:
@@ -64,8 +73,10 @@ def form_correction(request: Request, body: FormCorrectionBody) -> dict[str, str
             coaching_hint=body.coaching_hint,
         )
     except RuntimeError as exc:
+        form_correction_release_in_flight(rate_key)
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     except Exception as exc:  # noqa: BLE001
+        form_correction_release_in_flight(rate_key)
         raise HTTPException(
             status_code=502,
             detail=f"Image model error: {exc}",

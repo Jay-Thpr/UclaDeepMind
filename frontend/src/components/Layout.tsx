@@ -3,18 +3,23 @@ import './Layout.css'
 
 const nav = [
   { to: '/', label: 'Home' },
-  { to: '/select-skill', label: 'Pick skill' },
-  { to: '/onboarding', label: 'Goals' },
-  { to: '/dashboard', label: 'Journey' },
-  { to: '/session', label: 'Live session' },
+  { to: '/select-skill', label: 'Pick Skill' },
+  { to: '/onboarding', label: 'Create Skill' },
 ]
 
 export function Layout() {
   return (
     <div className="layout">
       <header className="layout__header">
-        <Link to="/" className="layout__brand">
-          Skill Quest
+        <Link to="/" className="layout__brand layout__brand-lockup">
+          <img
+            className="layout__logo"
+            src="/bear_logo_less_detail.png"
+            alt=""
+            width={40}
+            height={40}
+          />
+          Bear with me
         </Link>
         <nav className="layout__nav" aria-label="Main">
           {nav.map(({ to, label }) => (

@@ -102,9 +102,39 @@ export function SessionPage() {
         </header>
 
         <div
-          className={`session-main-grid${correctionImageUrl ? ' session-main-grid--split' : ''}`}
+          className={`session-main-grid${
+            correctionImageUrl ? ' session-main-grid--annotated' : ''
+          }`}
         >
-          <div className="session-video-card">
+          {correctionImageUrl ? (
+            <section className="session-annotation-panel" aria-label="Annotated still">
+              <div className="session-annotation-panel__head">
+                <span className="session-annotation-panel__title">Guidance still</span>
+                <button
+                  type="button"
+                  className="btn btn--ghost session-annotation-panel__close"
+                  onClick={clearCorrection}
+                >
+                  Close
+                </button>
+              </div>
+              <div className="session-annotation-panel__body">
+                <img
+                  src={correctionImageUrl}
+                  alt="Model-annotated form correction"
+                  className="session-annotation-panel__img"
+                />
+                {correctionNotes ? (
+                  <p className="session-annotation-panel__notes">{correctionNotes}</p>
+                ) : null}
+              </div>
+            </section>
+          ) : null}
+          <div
+            className={`session-video-card${
+              correctionImageUrl ? ' session-video-card--compact' : ''
+            }`}
+          >
             {isLive && (
               <div className="session-rec-badge">
                 <span className="session-rec-badge__dot" aria-hidden />
@@ -152,27 +182,6 @@ export function SessionPage() {
               )}
             </div>
           </div>
-
-          {correctionImageUrl ? (
-            <section className="session-correction-card" aria-label="Annotated still">
-              <div className="session-correction-card__head">
-                <span>Guidance still</span>
-                <button type="button" className="btn btn--ghost" onClick={clearCorrection}>
-                  Close
-                </button>
-              </div>
-              <div className="session-correction-card__body">
-                <img
-                  src={correctionImageUrl}
-                  alt="Model-annotated form correction"
-                  className="session-correction-card__img"
-                />
-                {correctionNotes ? (
-                  <p className="session-correction-card__notes">{correctionNotes}</p>
-                ) : null}
-              </div>
-            </section>
-          ) : null}
         </div>
 
         <div className="session-columns">

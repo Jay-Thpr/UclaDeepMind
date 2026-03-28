@@ -71,9 +71,12 @@ export function DashboardPage() {
   const calendarDays = Array.from({ length: 28 }, (_, i) => {
     const date = new Date(today)
     date.setDate(date.getDate() - (27 - i))
-    const hasSession = (i + date.getDate()) % 3 !== 0
+    const d = date.getDate()
     const isToday = i === 27
-    return { date: date.getDate(), hasSession, isToday }
+    const practiced = (i + d) % 3 !== 0
+    const planned = !practiced && (i + d) % 4 === 0
+    const state = practiced ? 'practiced' : planned ? 'planned' : 'none'
+    return { date: d, state, isToday }
   })
 
   const upcoming = [
@@ -255,8 +258,8 @@ export function DashboardPage() {
         </div>
       </div>
 
-      <div className="journey__panel">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+      <div className="journey__panel journey__practice-log">
+        <div className="journey__practice-log-head">
           <div
             style={{
               padding: '0.45rem',
@@ -268,47 +271,53 @@ export function DashboardPage() {
           >
             <CalendarIcon />
           </div>
-          <h3 className="journey__section-title" style={{ margin: 0 }}>
+          <h3 className="journey__section-title journey__section-title--inline">
             Practice log
           </h3>
         </div>
+        <ul className="journey__practice-log-legend" aria-label="Practice log legend">
+          <li className="journey__legend-item">
+            <span className="journey__legend-swatch journey__legend-swatch--none" aria-hidden />
+            No practice
+          </li>
+          <li className="journey__legend-item">
+            <span className="journey__legend-swatch journey__legend-swatch--practiced" aria-hidden />
+            Practiced
+          </li>
+          <li className="journey__legend-item">
+            <span className="journey__legend-swatch journey__legend-swatch--planned" aria-hidden />
+            Planned
+          </li>
+        </ul>
         <div className="journey__cal">
-          {calendarDays.map((day, index) => (
-            <div
-              key={index}
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: '0.35rem',
-              }}
-            >
+          {calendarDays.map((day, index) => {
+            const title =
+              day.state === 'practiced'
+                ? 'Practiced'
+                : day.state === 'planned'
+                  ? 'Planned practice'
+                  : 'No practice'
+            return (
               <div
-                className="journey__cal-day"
-                style={
-                  day.hasSession
-                    ? day.isToday
-                      ? {
-                          background: 'linear-gradient(135deg, #88a594 0%, #6d9279 100%)',
-                          color: '#ffffff',
-                          boxShadow: '0 3px 10px rgba(88, 130, 100, 0.3)',
-                        }
-                      : {
-                          background: 'rgba(136, 165, 148, 0.18)',
-                          color: '#5a8068',
-                          border: '1px solid rgba(136, 165, 148, 0.3)',
-                        }
-                    : {
-                        background: 'rgba(244, 243, 239, 0.8)',
-                        color: '#b0ada7',
-                      }
-                }
-                title={day.hasSession ? 'Session completed' : 'No session'}
+                key={index}
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                }}
               >
-                {day.date}
+                <div
+                  className={`journey__cal-day journey__cal-day--${day.state}${
+                    day.isToday ? ' journey__cal-day--today' : ''
+                  }`}
+                  title={title}
+                >
+                  {day.date}
+                </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       </div>
 

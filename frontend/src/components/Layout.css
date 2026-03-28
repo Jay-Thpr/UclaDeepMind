@@ -26,6 +26,20 @@
   letter-spacing: -0.02em;
 }
 
+.layout__brand-lockup {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.layout__logo {
+  height: 40px;
+  width: auto;
+  display: block;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
 .layout__brand:hover {
   color: var(--primary-dark);
 }

@@ -1,11 +1,15 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import './Page.css'
 
 const levels = ['Beginner', 'Intermediate', 'Advanced'] as const
 
 export function OnboardingPage() {
-  const [skill, setSkill] = useState('Knife skills')
+  const location = useLocation()
+  const fromPickMore = Boolean(
+    (location.state as { createSkill?: boolean } | null)?.createSkill,
+  )
+  const [skill, setSkill] = useState(fromPickMore ? '' : 'Knife skills')
   const [goal, setGoal] = useState('Dice vegetables evenly and safely')
   const [level, setLevel] = useState<(typeof levels)[number]>('Beginner')
 
@@ -19,11 +23,12 @@ export function OnboardingPage() {
       >
         <div className="text-center" style={{ marginBottom: '0.25rem' }}>
           <h1 className="page__title page__title--sm" style={{ marginBottom: '0.35rem' }}>
-            Set your quest
+            {fromPickMore ? 'Create your skill' : 'Set your quest'}
           </h1>
           <p className="page__lead" style={{ margin: '0 auto', maxWidth: '28rem' }}>
-            Tell us what you are building toward. We will use this to tune coaching
-            in upcoming milestones.
+            {fromPickMore
+              ? 'Name your skill and what you want to achieve. We will use this to tune coaching in upcoming milestones.'
+              : 'Tell us what you are building toward. We will use this to tune coaching in upcoming milestones.'}
           </p>
         </div>
         <label className="field">

@@ -47,6 +47,8 @@ export function useGeminiLiveSession(
   const userCaptionRef = useRef('')
   const modelCaptionRef = useRef('')
   const formCorrectionCooldownUntilRef = useRef(0)
+  /** Blocks overlapping annotation HTTP calls (parallel onToolCall or manual + tool). */
+  const formCorrectionInFlightRef = useRef(false)
 
   const [coachPhase, setCoachPhase] = useState<'off' | 'connecting' | 'live' | 'error'>('off')
   const [coachError, setCoachError] = useState<string | null>(null)
@@ -76,6 +78,23 @@ export function useGeminiLiveSession(
     formCorrectionCooldownUntilRef.current = 0
     setFormCorrectionCooldownEndsAt(0)
   }, [])
+
+  const releaseFormCorrectionInFlight = useCallback(() => {
+    formCorrectionInFlightRef.current = false
+  }, [])
+
+  /** Returns null if the slot was reserved; otherwise an error message (do not call release). */
+  const tryBeginFormCorrection = useCallback((): string | null => {
+    if (formCorrectionInFlightRef.current) {
+      return 'An annotation is already in progress. Wait for it to finish.'
+    }
+    const cooldownErr = peekFormCorrectionCooldownError()
+    if (cooldownErr) {
+      return cooldownErr
+    }
+    formCorrectionInFlightRef.current = true
+    return null
+  }, [peekFormCorrectionCooldownError])
 
   useEffect(() => {
     if (formCorrectionCooldownEndsAt === 0) {
@@ -120,7 +139,8 @@ export function useGeminiLiveSession(
     setCorrectionImageUrl(null)
     setCorrectionNotes('')
     clearFormCorrectionCooldown()
-  }, [stopMedia, closeWebSocket, clearFormCorrectionCooldown])
+    releaseFormCorrectionInFlight()
+  }, [stopMedia, closeWebSocket, clearFormCorrectionCooldown, releaseFormCorrectionInFlight])
 
   const applyFormCorrection = useCallback(
     async (focus: string | undefined, coachingHint: string | undefined) => {
@@ -139,7 +159,7 @@ export function useGeminiLiveSession(
 
   const runManualFormCorrection = useCallback(
     async (focus?: string) => {
-      const blocked = peekFormCorrectionCooldownError()
+      const blocked = tryBeginFormCorrection()
       if (blocked) {
         setCoachError(blocked)
         return
@@ -157,13 +177,15 @@ export function useGeminiLiveSession(
       } catch (e) {
         setCoachError(e instanceof Error ? e.message : String(e))
       } finally {
+        releaseFormCorrectionInFlight()
         setAnnotationBusy(false)
       }
     },
     [
       applyFormCorrection,
       beginFormCorrectionCooldown,
-      peekFormCorrectionCooldownError,
+      tryBeginFormCorrection,
+      releaseFormCorrectionInFlight,
     ],
   )
 
@@ -301,6 +323,8 @@ export function useGeminiLiveSession(
               response: Record<string, unknown>
             }> = []
 
+            let sawFormCorrectionInBatch = false
+
             setAnnotationBusy(true)
             try {
               for (const fc of calls) {
@@ -312,6 +336,20 @@ export function useGeminiLiveSession(
                   })
                   continue
                 }
+                if (sawFormCorrectionInBatch) {
+                  functionResponses.push({
+                    name: fc.name,
+                    id: fc.id,
+                    response: {
+                      ok: false,
+                      error:
+                        'Only one form correction per tool message; duplicate ignored.',
+                    },
+                  })
+                  continue
+                }
+                sawFormCorrectionInBatch = true
+
                 const focus =
                   typeof fc.args.focus === 'string' ? fc.args.focus : undefined
                 const fromTool = coachingTextFromToolArgs(fc.args)
@@ -320,12 +358,13 @@ export function useGeminiLiveSession(
                   userCaptionRef.current.trim() ||
                   undefined
                 const hint = fromTool ?? transcriptFallback
-                const cooldownErr = peekFormCorrectionCooldownError()
-                if (cooldownErr) {
+
+                const gateErr = tryBeginFormCorrection()
+                if (gateErr) {
                   functionResponses.push({
                     name: fc.name,
                     id: fc.id,
-                    response: { ok: false, error: cooldownErr },
+                    response: { ok: false, error: gateErr },
                   })
                   continue
                 }
@@ -351,6 +390,8 @@ export function useGeminiLiveSession(
                     id: fc.id,
                     response: { ok: false, error: err },
                   })
+                } finally {
+                  releaseFormCorrectionInFlight()
                 }
               }
               if (functionResponses.length) {
@@ -395,8 +436,9 @@ export function useGeminiLiveSession(
       beginFormCorrectionCooldown,
       closeWebSocket,
       disconnectCoach,
-      peekFormCorrectionCooldownError,
+      releaseFormCorrectionInFlight,
       stopMedia,
+      tryBeginFormCorrection,
     ],
   )
 

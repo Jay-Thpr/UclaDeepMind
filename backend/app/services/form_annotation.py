@@ -9,33 +9,34 @@ from google.genai import types
 
 from app.config import settings
 
-MARKUP_STYLE = """Visual style for the edited image:
-- Draw clear coaching markup: arrows, circles, and short text labels (large, readable).
-- Use high-contrast colors (yellow/white arrows; optional green for "correct" direction, red/orange for "adjust").
-- Keep the original subject and background recognizable; do not replace the whole scene with an unrelated image."""
+MARKUP_STYLE = """How to edit the image (priority order):
+1) Show what the learner SHOULD do — prefer editing the photo so the body, hands, tool, or posture visibly reflect the correct or target form (adjusted angle, alignment, grip, stance). Use gentle pose correction, a ghosted "target" outline, a faint second silhouette, or a small before/after inset if that makes the fix obvious. The goal is a picture of the right movement, not only symbols on top of a wrong pose.
+2) Add arrows, arcs, circles, and short labels only when they help emphasis or direction; do not rely on arrows alone if a literal corrected pose or tool position would be clearer.
+3) Keep the same scene and subject recognizable. Use high-contrast markup colors when you add overlays (yellow/white; green for "toward correct", red/orange sparingly for "adjust this")."""
 
 # When the Live coach sends text — image model must follow it, not improvise.
 PROMPT_WITH_COACH_TEXT = """The LIVE COACH (real-time voice model) provided the corrections below. Your job is to VISUALIZE ONLY these suggestions on the attached photo.
 
 Rules:
 - Treat the block between the --- lines as authoritative. Do not add different problems or contradict the coach.
-- Arrows, circles, and labels must match the coach's intent (body part, direction of movement, alignment).
-- If the frame does not show something the coach mentioned, state that briefly in your text note and draw only what is visible.
+- Illustrate the corrections by showing the intended form or motion when possible (adjusted limbs, tool angle, spine line, etc.), not only with arrows on the current pose.
+- Arrows, circles, and labels must match the coach's intent and may supplement the edit for direction or emphasis.
+- If the frame does not show something the coach mentioned, state that briefly in your text note and depict only what is visible.
 
 --- COACH CORRECTIONS ---
 {coach_text}
 ---
 {extra_focus}{markup_style}
 
-Output ONE edited image with that markup. Also a brief text note (one or two sentences) restating the same corrections in plain language."""
+Output ONE edited image. Also a brief text note (one or two sentences) restating the same corrections in plain language."""
 
 # No coach text — infer from the frame only.
 PROMPT_NO_COACH_TEXT = """You are a movement and technique coach. The user attached a single photo of their form (sports, cooking, music posture, etc.).
 
 Task: output ONE edited image based on this photo.
-- Draw clear coaching markup on top of the scene: arrows, circles, and short text labels (large, readable).
-- Show what to change (e.g. wrong angle) and the suggested correction direction.
-- If the activity is unclear, give generic posture / alignment cues.
+- Prefer showing the corrected or target form visually (pose, alignment, grip, tool position) rather than only pasting arrows onto the mistake.
+- Add arrows, circles, and short labels when they clarify direction or emphasis.
+- If the activity is unclear, give generic posture / alignment cues and still try to depict a plausible improved form on the same subject.
 
 {markup_style}
 

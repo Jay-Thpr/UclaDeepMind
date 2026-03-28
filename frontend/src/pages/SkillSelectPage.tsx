@@ -288,15 +288,18 @@ export function SkillSelectPage() {
   }, [])
 
   const handleDrop = (skillId: string) => {
-    setSelectedSkill(skillId)
     setHoveredSlot(null)
+    if (skillId === 'more') {
+      navigate('/onboarding', { state: { createSkill: true } })
+      return
+    }
+    setSelectedSkill(skillId)
     setShowConfirm(true)
   }
 
   const handleConfirm = () => {
     if (!selectedSkill) return
-    if (selectedSkill === 'more') navigate('/onboarding')
-    else navigate('/dashboard')
+    navigate('/dashboard')
   }
 
   return (
