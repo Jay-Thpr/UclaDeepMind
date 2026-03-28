@@ -1,0 +1,49 @@
+{
+  "name": "glitch",
+  "version": "1.0.0",
+  "description": "AI coaching engine for real-time self-training — UCLA Glitch x DeepMind hackathon",
+  "scripts": {
+    "dev": "concurrently -k -n \"next,ws\" \"next dev\" \"tsx watch server/index.ts\"",
+    "dev:next": "next dev",
+    "dev:ws": "tsx watch server/index.ts",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "test": "vitest"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Jay-Thpr/UclaDeepMind.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Jay-Thpr/UclaDeepMind/issues"
+  },
+  "homepage": "https://github.com/Jay-Thpr/UclaDeepMind#readme",
+  "dependencies": {
+    "@google/genai": "^1.46.0",
+    "dotenv": "^17.3.1",
+    "google-auth-library": "^10.6.2",
+    "googleapis": "^171.4.0",
+    "next": "^14.2.35",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "ws": "^8.20.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.37",
+    "@types/react": "^18.3.28",
+    "@types/react-dom": "^18.3.7",
+    "@types/ws": "^8.18.1",
+    "autoprefixer": "^10.4.27",
+    "concurrently": "^9.2.1",
+    "eslint": "^8.57.1",
+    "eslint-config-next": "^14.2.35",
+    "postcss": "^8.5.8",
+    "tailwindcss": "^3.4.19",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
+  }
+}
