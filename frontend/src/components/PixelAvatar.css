@@ -1,0 +1,149 @@
+.pixel-avatar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.pixel-avatar__stage {
+  position: relative;
+  width: 120px;
+  height: 140px;
+  display: grid;
+  place-items: end center;
+}
+
+.pixel-avatar__shadow {
+  width: 72px;
+  height: 12px;
+  background: rgba(0, 0, 0, 0.35);
+  border-radius: 50%;
+  filter: blur(2px);
+  margin-bottom: 4px;
+}
+
+.pixel-avatar__sprite {
+  position: absolute;
+  bottom: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  image-rendering: pixelated;
+}
+
+.pixel-avatar__hat,
+.pixel-avatar__head,
+.pixel-avatar__body,
+.pixel-avatar__apron,
+.pixel-avatar__legs {
+  box-sizing: border-box;
+  image-rendering: pixelated;
+}
+
+.pixel-avatar__hat {
+  width: 48px;
+  height: 14px;
+  margin-bottom: -2px;
+  background: var(--avatar-hat);
+  border: 3px solid var(--avatar-outline);
+  box-shadow: inset -4px 0 0 rgba(0, 0, 0, 0.15);
+}
+
+.pixel-avatar__head {
+  width: 40px;
+  height: 36px;
+  background: var(--avatar-skin);
+  border: 3px solid var(--avatar-outline);
+}
+
+.pixel-avatar__body {
+  width: 44px;
+  height: 40px;
+  margin-top: -3px;
+  background: var(--avatar-shirt);
+  border: 3px solid var(--avatar-outline);
+}
+
+.pixel-avatar__apron {
+  width: 32px;
+  height: 28px;
+  margin-top: -36px;
+  background: var(--avatar-apron);
+  border: 3px solid var(--avatar-outline);
+  opacity: var(--apron-opacity, 1);
+}
+
+.pixel-avatar__legs {
+  width: 44px;
+  height: 22px;
+  margin-top: -3px;
+  background: var(--avatar-pants);
+  border: 3px solid var(--avatar-outline);
+}
+
+.pixel-avatar__caption {
+  margin: 0;
+  font-family: var(--font-pixel);
+  font-size: 0.55rem;
+  color: var(--text-muted);
+  text-align: center;
+  max-width: 12rem;
+  line-height: 1.5;
+}
+
+/* Tier palettes — higher tiers add accessory visibility + richer colors */
+.pixel-avatar--tier-1 {
+  --avatar-hat: #6b7280;
+  --avatar-skin: #e8c4a8;
+  --avatar-shirt: #94a3b8;
+  --avatar-apron: #cbd5e1;
+  --avatar-pants: #475569;
+  --avatar-outline: #0f172a;
+  --apron-opacity: 0.35;
+}
+
+.pixel-avatar--tier-2 {
+  --avatar-hat: #b45309;
+  --avatar-skin: #e8c4a8;
+  --avatar-shirt: #15803d;
+  --avatar-apron: #fef3c7;
+  --avatar-pants: #1e3a5f;
+  --avatar-outline: #0f172a;
+  --apron-opacity: 0.7;
+}
+
+.pixel-avatar--tier-3 {
+  --avatar-hat: #c2410c;
+  --avatar-skin: #e8c4a8;
+  --avatar-shirt: #166534;
+  --avatar-apron: #fde68a;
+  --avatar-pants: #1e3a8a;
+  --avatar-outline: #0f172a;
+  --apron-opacity: 1;
+}
+
+.pixel-avatar--tier-4 {
+  --avatar-hat: #a21caf;
+  --avatar-skin: #e8c4a8;
+  --avatar-shirt: #0f766e;
+  --avatar-apron: #fae8ff;
+  --avatar-pants: #312e81;
+  --avatar-outline: #0f172a;
+  --apron-opacity: 1;
+}
+
+.pixel-avatar--tier-5 {
+  --avatar-hat: #f59e0b;
+  --avatar-skin: #e8c4a8;
+  --avatar-shirt: #b91c1c;
+  --avatar-apron: #fef9c3;
+  --avatar-pants: #1e1b4b;
+  --avatar-outline: #0f172a;
+  --apron-opacity: 1;
+}
+
+.pixel-avatar--tier-5 .pixel-avatar__hat {
+  width: 52px;
+  height: 18px;
+  background: linear-gradient(90deg, var(--avatar-hat), #fbbf24);
+}
