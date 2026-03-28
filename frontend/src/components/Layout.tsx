@@ -20,7 +20,7 @@ export function Layout() {
             width={40}
             height={40}
           />
-          Bear With Me
+          Bear with me
         </Link>
         <div className="layout__header-right">
           <nav className="layout__nav" aria-label="Main">

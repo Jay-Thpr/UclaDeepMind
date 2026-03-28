@@ -1,12 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { fetchSkill, fetchSkills, type SkillOut } from '../api/skills'
+import { Character } from '../components/Character'
 import './Page.css'
-
-/** Served from `public/volley_bear.png` — static hero avatar on the journey panel */
-const VOLLEY_BEAR_SRC = '/volley_bear.png'
-const DASHBOARD_HERO_LEVEL = 2
-const DASHBOARD_HERO_PROGRESS_PCT = 42
 
 function formatPracticeTime(seconds: number): string {
   const s = Math.max(0, Math.floor(seconds))
@@ -117,6 +113,8 @@ export function DashboardPage() {
 
   const currentSkill = skill?.title ?? nav?.skillTitle ?? 'Your skill'
   const streak = skill?.stats_day_streak ?? 0
+  const level = skill?.stats_level ?? 1
+  const progress = Math.round(skill?.stats_progress_percent ?? 0)
   const sessions = skill?.stats_sessions ?? 0
   const practiceLabel = formatPracticeTime(skill?.stats_practice_seconds ?? 0)
   const mastered = skill?.stats_mastered ?? 0
@@ -207,15 +205,9 @@ export function DashboardPage() {
             <div className="journey__avatar-column">
               <div className="journey__avatar-wrap">
                 <div className="journey__avatar-bear">
-                  <img
-                    src={VOLLEY_BEAR_SRC}
-                    alt="Volley bear mascot"
-                    className="journey__avatar-img"
-                    width={112}
-                    height={112}
-                  />
+                  <Character size="medium" />
                   <div className="journey__level-badge" aria-hidden>
-                    {DASHBOARD_HERO_LEVEL}
+                    {level}
                   </div>
                 </div>
               </div>
@@ -235,7 +227,7 @@ export function DashboardPage() {
                 }}
               >
                 <h2 className="page__title page__title--sm" style={{ margin: 0 }}>
-                  Level {DASHBOARD_HERO_LEVEL} learner
+                  Level {level} learner
                 </h2>
                 <span
                   style={{
@@ -244,14 +236,11 @@ export function DashboardPage() {
                     color: 'var(--text-muted)',
                   }}
                 >
-                  {DASHBOARD_HERO_PROGRESS_PCT}% to level {DASHBOARD_HERO_LEVEL + 1}
+                  {progress}% to level {level + 1}
                 </span>
               </div>
               <div className="xp-bar" aria-hidden>
-                <div
-                  className="xp-bar__fill"
-                  style={{ width: `${DASHBOARD_HERO_PROGRESS_PCT}%` }}
-                />
+                <div className="xp-bar__fill" style={{ width: `${progress}%` }} />
               </div>
               <div className="journey__stats" style={{ marginTop: '1.25rem' }}>
                 <div
