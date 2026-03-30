@@ -2,9 +2,31 @@
 
 Your AI coach for real-world skills.
 
+![React](https://img.shields.io/badge/React-18-61dafb?logo=react&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-009688?logo=fastapi&logoColor=white)
+![Gemini](https://img.shields.io/badge/Gemini-Live-8E75B2?logo=google&logoColor=white)
+![Google Cloud](https://img.shields.io/badge/Google_Cloud-OAuth-4285F4?logo=googlecloud&logoColor=white)
+![Python](https://img.shields.io/badge/Python-3.11+-3776AB?logo=python&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-3178C6?logo=typescript&logoColor=white)
+
 ![Bear With Me hero](screenshots/hero-banner.png)
 
 Bear With Me is a multimodal coaching app that helps learners practice real skills with live feedback, visual corrections, and persistent progression. Instead of acting like a generic chat assistant, it researches a skill, launches a live coaching session, and generates annotated feedback directly on the learner's own practice footage.
+
+## Table of Contents
+- [What It Does](#what-it-does)
+- [The Problem](#the-problem)
+- [Our Solution](#our-solution)
+- [What Makes This Special](#what-makes-this-special)
+- [Demo Flow](#demo-flow)
+- [Architecture](#architecture)
+- [Tech Stack](#tech-stack)
+- [Quick Start](#quick-start)
+- [Local Setup](#local-setup)
+- [Configuration Reference](#configuration-reference)
+- [Product Architecture](#product-architecture)
+- [Deployment Notes](#deployment-notes)
+- [Future Work](#future-work)
 
 ---
 
@@ -94,25 +116,25 @@ This allows the AI to **remember your journey** and personalize future sessions.
 
 ## Demo Flow
 
-### 0. Pick a focus area
+### 1. Pick a focus area
 
 The experience starts with a playful skill picker that makes the product feel like a guided journey.
 
 ![Skill picker](screenshots/skill-select-arena.png)
 
-### 1. Create your skill
+### 2. Create your skill
 
 Enter a skill, concrete goal, and starting level. The backend generates a Gemini research dossier and persists the new skill.
 
 ![Create your skill](screenshots/onboarding-flow.png)
 
-### 2. Review your journey
+### 3. Review your journey
 
 The dashboard shows your selected skill, current level, accumulated practice, streak, and progress toward the next level.
 
 ![Journey dashboard](screenshots/dashboard-journey.png)
 
-### 3. Start a live coaching session
+### 4. Start a live coaching session
 
 Start camera and microphone, connect to Gemini Live, and receive spoken realtime guidance. When verbal feedback is insufficient, the app captures a still and generates a marked-up correction image.
 
@@ -122,57 +144,66 @@ Start camera and microphone, connect to Gemini Live, and receive spoken realtime
 
 ## Architecture
 
-The system has three main phases: authentication, skill setup, and live coaching. Each phase involves parallel processes and integrates with Google Cloud services.
+The system flows through authentication, skill creation, live coaching, and persistence. Parallel processes (voice coaching + visual corrections) run simultaneously during sessions.
 
 ```mermaid
-flowchart LR
-    subgraph Auth["🔐 Authentication"]
-        A1[User visits app] --> A2[Google OAuth login]
-        A2 --> A3[Token exchange]
-        A3 --> A4[(Encrypted credentials<br/>stored)]
-    end
+flowchart TD
+    A[User visits app] --> B[Google OAuth login]
+    B --> C[Token exchange & encryption]
+    C --> D[(Encrypted credentials stored)]
 
-    subgraph Setup["📚 Skill Setup"]
-        S1[Create skill + goal] --> S2[Gemini generates<br/>research dossier]
-        S2 --> S3[(Skill + research<br/>in DB)]
-        S3 --> S4[Dashboard shows<br/>level & stats]
-    end
+    D --> E[Create skill + goal]
+    E --> F[Gemini generates research dossier]
+    F --> G[(Skill + research in DB)]
+    G --> H[Dashboard: level, stats, streak]
 
-    subgraph Session["🎥 Live Coaching Session"]
-        direction TB
-        L1[Start session] --> L2[Mint ephemeral<br/>Live token]
-        L2 --> L3[Assemble system<br/>instruction from DB]
-        L3 --> L4[Connect Gemini Live<br/>+ camera + mic]
+    H --> I[Start live session]
+    I --> J[Backend mints ephemeral Live token]
+    J --> K[Assemble system instruction from DB]
+    K --> L[Connect: Gemini Live + camera + mic]
 
-        L4 --> L5A[Voice coaching]
-        L4 --> L5B{Visual<br/>correction?}
+    L --> M[Voice coaching]
+    L --> N{Need visual<br/>correction?}
 
-        L5B -->|Yes| L6[Capture frame]
-        L6 --> L7[Gemini image model<br/>annotates]
-        L7 --> L8[Display correction]
-        L8 --> L9A[Upload to<br/>Google Photos]
+    N -->|Yes| O[Capture video frame]
+    O --> P[Gemini image model annotates]
+    P --> Q[Display correction]
+    Q --> R[Upload to Google Photos]
 
-        L5A --> L10[End session]
-        L8 --> L10
-        L10 --> L11[Gemini summarizes<br/>progress]
-    end
+    M --> S[End session]
+    R --> S
+    S --> T[Gemini summarizes progress]
 
-    subgraph Persist["💾 Persistence"]
-        P1[(Stats updated)]
-        P2[(Session summary)]
-        P3[Export to<br/>Google Docs]
-    end
+    T --> U[(Stats + progress events)]
+    T --> V[(Session summary)]
+    V --> W[Export to Google Docs]
 
-    A4 --> S1
-    S4 --> L1
-    L11 --> P1
-    L11 --> P2
-    P2 --> P3
+    style A fill:#e3f2fd
+    style B fill:#e3f2fd
+    style C fill:#e3f2fd
+    style D fill:#e3f2fd
 
-    style Auth fill:#e3f2fd
-    style Setup fill:#f3e5f5
-    style Session fill:#fff3e0
-    style Persist fill:#e8f5e9
+    style E fill:#f3e5f5
+    style F fill:#f3e5f5
+    style G fill:#f3e5f5
+    style H fill:#f3e5f5
+
+    style I fill:#fff3e0
+    style J fill:#fff3e0
+    style K fill:#fff3e0
+    style L fill:#fff3e0
+    style M fill:#fff3e0
+    style N fill:#fff3e0
+    style O fill:#fff3e0
+    style P fill:#fff3e0
+    style Q fill:#fff3e0
+    style R fill:#fff3e0
+    style S fill:#fff3e0
+    style T fill:#fff3e0
+
+    style U fill:#e8f5e9
+    style V fill:#e8f5e9
+    style W fill:#e8f5e9
 ```
 
 ### Key Technical Decisions
@@ -209,6 +240,21 @@ flowchart LR
 - **Photos Library API** - album creation and media uploads
 - **Docs API** - session summary document export
 - **Drive API** - file management and permissions
+
+---
+
+## Quick Start
+
+**TL;DR:** OAuth setup → Backend + Frontend → Create skill → Start coaching
+
+1. Get [Google OAuth credentials](https://console.cloud.google.com/apis/credentials) and [Gemini API key](https://ai.google.dev/)
+2. Clone repo and configure `.env` files ([details](#local-setup))
+3. Start backend: `uvicorn app.main:app --reload --port 3000`
+4. Start frontend: `npm run dev`
+5. Visit `http://localhost:5173` and sign in with Google
+6. Create your first skill and start a coaching session
+
+[Full setup instructions →](#local-setup)
 
 ---
 
@@ -430,33 +476,17 @@ screenshots/    README and demo assets
 
 ## Future Work
 
+### 🎯 Core Features
 - **Grounded research** - Integrate YouTube and Google Search APIs for skill-specific video and article sourcing
 - **Richer learner model** - Multi-session personalization with explicit intervention-tier orchestration
 - **Cross-domain proof** - Demonstrate stronger coverage beyond the current cooking/knife-skills focus
+
+### 🔌 Integrations
 - **Calendar integration** - Scheduled practice reminders and streak notifications
 - **Video recording** - Full session playback with timestamped annotations and coach callouts
+
+### 🌐 Community
 - **Skill sharing** - Export and import skill dossiers between users
-
----
-
-## Screenshots
-
-All screenshots are in [`screenshots/`](screenshots/):
-
-- `hero-banner.png`
-- `problem-slide.png`
-- `solution-slide.png`
-- `skill-select-arena.png`
-- `onboarding-flow.png`
-- `dashboard-journey.png`
-- `live-annotated-session.png`
-- `level-up-screen.png`
-
----
-
-## License
-
-[Your license here]
 
 ---
 
