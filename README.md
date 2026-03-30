@@ -177,33 +177,6 @@ flowchart TD
     T --> U[(Stats + progress events)]
     T --> V[(Session summary)]
     V --> W[Export to Google Docs]
-
-    style A fill:#e3f2fd
-    style B fill:#e3f2fd
-    style C fill:#e3f2fd
-    style D fill:#e3f2fd
-
-    style E fill:#f3e5f5
-    style F fill:#f3e5f5
-    style G fill:#f3e5f5
-    style H fill:#f3e5f5
-
-    style I fill:#fff3e0
-    style J fill:#fff3e0
-    style K fill:#fff3e0
-    style L fill:#fff3e0
-    style M fill:#fff3e0
-    style N fill:#fff3e0
-    style O fill:#fff3e0
-    style P fill:#fff3e0
-    style Q fill:#fff3e0
-    style R fill:#fff3e0
-    style S fill:#fff3e0
-    style T fill:#fff3e0
-
-    style U fill:#e8f5e9
-    style V fill:#e8f5e9
-    style W fill:#e8f5e9
 ```
 
 ### Key Technical Decisions
